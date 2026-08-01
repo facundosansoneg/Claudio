@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { signIn, signOut } from "@/auth";
 
@@ -53,6 +54,15 @@ export default async function DashboardPage() {
             {role.scopeId ? ` (${role.scopeId})` : ""}
           </li>
         ))}
+      </ul>
+      <h2>Ir a</h2>
+      <ul>
+        <li>
+          <Link href="/owners">Propietarios</Link>
+        </li>
+        <li>
+          <Link href="/properties">Propiedades</Link>
+        </li>
       </ul>
       <form
         action={async () => {

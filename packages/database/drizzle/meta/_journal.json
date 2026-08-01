@@ -36,6 +36,20 @@
       "when": 1785603606533,
       "tag": "0004_add_user_identities",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785618066061,
+      "tag": "0005_add_owners_properties",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785618074742,
+      "tag": "0006_enable_rls_owners_properties",
+      "breakpoints": true
     }
   ]
 }

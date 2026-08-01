@@ -9,6 +9,7 @@ import {
 } from "@farfalla/database";
 import { and, eq } from "drizzle-orm";
 import { ROLE_DEFINITIONS, seedRoles } from "./seed-roles";
+import { grantAllPermissionsToRole, seedPermissions } from "./seed-permissions";
 
 /** Debe coincidir con el "id" devuelto por el proveedor Credentials en config.ts. */
 export const DEV_LOGIN_SUBJECT = "dev-login-demo-user";
@@ -35,6 +36,7 @@ export async function seedDevUser(db: Database): Promise<SeedDevUserResult> {
       .onConflictDoNothing();
 
     await seedRoles(tx, DEV_ORGANIZATION_ID);
+    await seedPermissions(tx);
 
     const adminRoleDefinition = ROLE_DEFINITIONS.find((role) => role.code === "system_admin");
     if (!adminRoleDefinition) throw new Error("no se encontró el rol system_admin en ROLE_DEFINITIONS");
@@ -46,6 +48,10 @@ export async function seedDevUser(db: Database): Promise<SeedDevUserResult> {
         and(eq(roles.organizationId, DEV_ORGANIZATION_ID), eq(roles.code, adminRoleDefinition.code)),
       );
     if (!adminRole) throw new Error("seedRoles no creó el rol system_admin");
+
+    // Administrador del sistema = "configuración completa" (spec, sección
+    // 5.2): tiene todos los permisos del catálogo actual.
+    await grantAllPermissionsToRole(tx, adminRole.id);
 
     const [user] = await tx
       .insert(users)

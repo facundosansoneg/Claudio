@@ -5,3 +5,6 @@ export * from "./user-identities";
 export * from "./audit-log";
 export * from "./parameters";
 export * from "./job-runs";
+export * from "./owners";
+export * from "./properties";
+export * from "./ownership-interests";

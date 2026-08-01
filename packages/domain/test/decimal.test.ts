@@ -1,0 +1,22 @@
+import { describe, expect, it } from "vitest";
+import { formatFixedPoint, parseFixedPoint, sumFixedPoint } from "../src/decimal";
+
+describe("decimal (aritmética de punto fijo con BigInt)", () => {
+  it("parsea y formatea sin perder precisión", () => {
+    expect(parseFixedPoint("60", 8)).toBe(6000000000n);
+    expect(parseFixedPoint("33.33333333", 8)).toBe(3333333333n);
+    expect(parseFixedPoint("-12.5", 8)).toBe(-1250000000n);
+    expect(formatFixedPoint(6000000000n, 8)).toBe("60.00000000");
+    expect(formatFixedPoint(-1250000000n, 8)).toBe("-12.50000000");
+  });
+
+  it("rechaza más precisión que la escala permitida", () => {
+    expect(() => parseFixedPoint("1.123456789", 8)).toThrow();
+  });
+
+  it("suma exacto sin errores de redondeo típicos de float", () => {
+    // 0.1 + 0.2 en float da 0.30000000000000004; acá tiene que dar exacto.
+    const total = sumFixedPoint([parseFixedPoint("0.1", 8), parseFixedPoint("0.2", 8)]);
+    expect(formatFixedPoint(total, 8)).toBe("0.30000000");
+  });
+});

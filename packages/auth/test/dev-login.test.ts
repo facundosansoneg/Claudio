@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { createDatabase, type Database } from "@farfalla/database";
 import { seedDevUser, DEV_LOGIN_SUBJECT } from "../src/dev-login";
 import { resolveUserContext } from "../src/resolve-user-context";
+import { can } from "../src/authorize";
 
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? "postgres://farfalla:farfalla@localhost:5432/farfalla_test";
@@ -33,5 +34,15 @@ describe("seedDevUser — login de prueba sin Azure", () => {
     expect(context).not.toBeNull();
     expect(context?.userId).toBe(first.userId);
     expect(context?.roles.some((role) => role.roleCode === "system_admin")).toBe(true);
+
+    await expect(
+      can(db, {
+        userId: first.userId,
+        organizationId: first.organizationId,
+        resource: "owner",
+        action: "create",
+        scope: { type: "organization" },
+      }),
+    ).resolves.toBe(true);
   });
 });

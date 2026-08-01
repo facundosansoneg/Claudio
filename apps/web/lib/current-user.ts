@@ -1,12 +1,6 @@
-import { createDatabase } from "@farfalla/database";
 import { resolveUserContext, type UserContext } from "@farfalla/auth";
 import { auth } from "@/auth";
-
-let db: ReturnType<typeof createDatabase> | null = null;
-function getDb() {
-  if (!db) db = createDatabase(process.env.DATABASE_URL ?? "");
-  return db;
-}
+import { getDb } from "./db";
 
 /**
  * Resuelve organización, usuario y roles del usuario autenticado en la
