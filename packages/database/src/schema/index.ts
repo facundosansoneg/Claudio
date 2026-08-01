@@ -15,3 +15,4 @@ export * from "./accounting";
 export * from "./payments";
 export * from "./tax-profiles";
 export * from "./tax-exemptions";
+export * from "./commission-concepts";

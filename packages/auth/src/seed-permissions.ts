@@ -32,6 +32,9 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "owner_statement", action: "view", description: "Ver estado de cuenta de propietario" },
   { resource: "tax_exemption", action: "view", description: "Ver exoneraciones fiscales" },
   { resource: "tax_exemption", action: "create", description: "Asignar exoneración fiscal" },
+  { resource: "commission_concept", action: "view", description: "Ver conceptos de comisión" },
+  { resource: "commission_concept", action: "create", description: "Crear concepto de comisión" },
+  { resource: "commission_concept", action: "override", description: "Asignar override de comisión por propietario" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

@@ -8,4 +8,5 @@ export * from "./accounting/reprint-receipt";
 export * from "./accounting/distribute-charge-to-owners";
 export * from "./accounting/owner-statement";
 export * from "./accounting/expiring-tax-exemptions";
+export * from "./accounting/resolve-commission-concept";
 export * from "./seed/seed-demo-dataset";

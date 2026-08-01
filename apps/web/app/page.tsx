@@ -75,6 +75,9 @@ export default async function DashboardPage() {
         <li>
           <Link href="/receipts">Recibos</Link>
         </li>
+        <li>
+          <Link href="/commission-concepts">Conceptos de comisión</Link>
+        </li>
       </ul>
       <form
         action={async () => {
