@@ -1,0 +1,3 @@
+{
+  "buildCommand": "cd ../.. && pnpm --filter @farfalla/database run migrate && pnpm --filter @farfalla/auth run seed:dev && cd apps/web && pnpm exec next build"
+}
