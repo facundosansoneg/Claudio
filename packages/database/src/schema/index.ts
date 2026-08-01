@@ -17,3 +17,5 @@ export * from "./tax-profiles";
 export * from "./tax-exemptions";
 export * from "./commission-concepts";
 export * from "./invoices";
+export * from "./expenses";
+export * from "./allocation-rules";

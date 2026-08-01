@@ -40,6 +40,11 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "invoice", action: "view", description: "Ver facturas" },
   { resource: "invoice", action: "create", description: "Crear factura manual" },
   { resource: "invoice", action: "confirm", description: "Confirmar factura manual" },
+  { resource: "expense", action: "view", description: "Ver gastos" },
+  { resource: "expense", action: "create", description: "Registrar gasto" },
+  { resource: "expense", action: "allocate", description: "Distribuir gasto entre propietarios" },
+  { resource: "allocation_rule", action: "view", description: "Ver reglas de distribución de gastos" },
+  { resource: "allocation_rule", action: "create", description: "Crear regla de distribución de gastos" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

@@ -81,6 +81,9 @@ export default async function DashboardPage() {
         <li>
           <Link href="/invoices">Facturación manual</Link>
         </li>
+        <li>
+          <Link href="/expenses">Gastos y distribución</Link>
+        </li>
       </ul>
       <form
         action={async () => {
