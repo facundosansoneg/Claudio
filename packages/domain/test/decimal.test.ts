@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatFixedPoint, parseFixedPoint, sumFixedPoint } from "../src/decimal";
+import { applyPercentage, formatFixedPoint, parseFixedPoint, sumFixedPoint } from "../src/decimal";
 
 describe("decimal (aritmética de punto fijo con BigInt)", () => {
   it("parsea y formatea sin perder precisión", () => {
@@ -18,5 +18,12 @@ describe("decimal (aritmética de punto fijo con BigInt)", () => {
     // 0.1 + 0.2 en float da 0.30000000000000004; acá tiene que dar exacto.
     const total = sumFixedPoint([parseFixedPoint("0.1", 8), parseFixedPoint("0.2", 8)]);
     expect(formatFixedPoint(total, 8)).toBe("0.30000000");
+  });
+
+  it("applyPercentage calcula un porcentaje exacto de un monto", () => {
+    expect(applyPercentage("30000.000000", "60")).toBe("18000.000000");
+    expect(applyPercentage("30000.000000", "40")).toBe("12000.000000");
+    expect(applyPercentage("30000.000000", "0")).toBe("0.000000");
+    expect(applyPercentage("100.000000", "33.333333")).toBe("33.333333");
   });
 });

@@ -64,6 +64,20 @@
       "when": 1785618907523,
       "tag": "0008_enable_rls_leases_charges_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785621348867,
+      "tag": "0009_add_tax_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785621354562,
+      "tag": "0010_enable_rls_tax_profiles",
+      "breakpoints": true
     }
   ]
 }

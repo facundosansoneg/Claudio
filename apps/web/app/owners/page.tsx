@@ -63,7 +63,7 @@ export default async function OwnersPage() {
               <th>Documento</th>
               <th>Tipo de liquidación</th>
               <th>Estado</th>
-              {canEdit && <th></th>}
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -73,11 +73,15 @@ export default async function OwnersPage() {
                 <td>{owner.documentNumber ?? "—"}</td>
                 <td>{owner.settlementType}</td>
                 <td>{owner.status}</td>
-                {canEdit && (
-                  <td>
-                    <Link href={`/owners/${owner.id}/edit`}>Editar</Link>
-                  </td>
-                )}
+                <td>
+                  <Link href={`/owners/${owner.id}`}>Estado de cuenta</Link>
+                  {canEdit && (
+                    <>
+                      {" · "}
+                      <Link href={`/owners/${owner.id}/edit`}>Editar</Link>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

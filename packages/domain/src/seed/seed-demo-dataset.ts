@@ -9,12 +9,15 @@ import {
   leases,
   leaseParties,
   charges,
+  taxProfiles,
+  journalEntries,
   withOrganizationContext,
   type Database,
 } from "@farfalla/database";
 import { seedChartOfAccounts } from "../accounting/chart-of-accounts";
 import { generateCharge } from "../accounting/generate-charge";
 import { registerPaymentAndIssueReceipt } from "../accounting/register-payment";
+import { distributeChargeToOwners } from "../accounting/distribute-charge-to-owners";
 
 // IDs fijos y deterministas para que el seed sea idempotente: correrlo
 // de nuevo no duplica filas (a diferencia de charges/payments, que usan
@@ -40,6 +43,8 @@ const TENANT_2_ID = "00000000-0000-0000-0000-000000000304";
 
 const LEASE_1_ID = "00000000-0000-0000-0000-000000000401";
 const LEASE_2_ID = "00000000-0000-0000-0000-000000000402";
+
+const TAX_PROFILE_A_ID = "00000000-0000-0000-0000-000000000501";
 
 function monthPeriod(monthsAgo: number): { period: string; dueDate: string } {
   const now = new Date();
@@ -179,6 +184,7 @@ export async function seedDemoDataset(
           economicPercentage: "60",
           rentDistributionPercentage: "60",
           taxContributionPercentage: "100",
+          validFrom: "2026-01-01",
         },
         {
           id: OWNERSHIP_INTEREST_1B_ID,
@@ -189,6 +195,7 @@ export async function seedDemoDataset(
           economicPercentage: "40",
           rentDistributionPercentage: "40",
           taxContributionPercentage: "0",
+          validFrom: "2026-01-01",
         },
         {
           id: OWNERSHIP_INTEREST_2A_ID,
@@ -199,6 +206,7 @@ export async function seedDemoDataset(
           economicPercentage: "100",
           rentDistributionPercentage: "100",
           taxContributionPercentage: "100",
+          validFrom: "2026-01-01",
         },
       ])
       .onConflictDoNothing();
@@ -232,6 +240,7 @@ export async function seedDemoDataset(
           currency: "UYU",
           initialRent: "30000.000000",
           dueDay: 1,
+          commissionOnRentPercentage: "10",
         },
         {
           id: LEASE_2_ID,
@@ -243,8 +252,24 @@ export async function seedDemoDataset(
           currency: "USD",
           initialRent: "500.000000",
           dueDay: 1,
+          commissionOnRentPercentage: "10",
         },
       ])
+      .onConflictDoNothing();
+
+    // Solo María (owner A) tiene perfil fiscal — Farfalla Inversiones no
+    // retiene nada hasta que se le asigne uno (CLAUDE.md: nunca asumir
+    // una tasa fiscal).
+    await tx
+      .insert(taxProfiles)
+      .values({
+        id: TAX_PROFILE_A_ID,
+        organizationId,
+        ownerId: OWNER_A_ID,
+        taxType: "irpf",
+        percentage: "10.5",
+        validFrom: "2020-01-01",
+      })
       .onConflictDoNothing();
 
     await tx
@@ -284,6 +309,20 @@ export async function seedDemoDataset(
               amount: charge.balance,
               triggeredBy,
             });
+          }
+
+          // El mes más antiguo queda además liquidado a los propietarios,
+          // para que el estado de cuenta no arranque vacío. El más
+          // reciente de los dos cobrados queda sin liquidar a propósito,
+          // para poder probar el botón "Liquidar" manualmente.
+          if (monthsAgo === 2) {
+            const [existingDistribution] = await tx
+              .select({ id: journalEntries.id })
+              .from(journalEntries)
+              .where(and(eq(journalEntries.source, "owner_accrual"), eq(journalEntries.sourceDocumentId, chargeId)));
+            if (!existingDistribution) {
+              await distributeChargeToOwners(tx, { organizationId, chargeId, triggeredBy });
+            }
           }
         }
         // monthsAgo === 0 (mes en curso) queda pendiente a propósito,

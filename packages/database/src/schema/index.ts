@@ -13,3 +13,4 @@ export * from "./leases";
 export * from "./charges";
 export * from "./accounting";
 export * from "./payments";
+export * from "./tax-profiles";

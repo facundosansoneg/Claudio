@@ -26,6 +26,10 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "receipt", action: "reverse", description: "Anular recibo" },
   { resource: "ownership_interest", action: "view", description: "Ver participaciones" },
   { resource: "ownership_interest", action: "create", description: "Asignar participación" },
+  { resource: "charge", action: "distribute", description: "Liquidar cargo a propietarios" },
+  { resource: "tax_profile", action: "view", description: "Ver perfiles fiscales" },
+  { resource: "tax_profile", action: "create", description: "Asignar perfil fiscal" },
+  { resource: "owner_statement", action: "view", description: "Ver estado de cuenta de propietario" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

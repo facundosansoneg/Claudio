@@ -8,11 +8,12 @@ import {
   properties,
   parties,
   leaseParties,
+  journalEntries,
 } from "@farfalla/database";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
-import { generateChargeAction, collectChargeAction } from "./actions";
+import { generateChargeAction, collectChargeAction, distributeChargeAction } from "./actions";
 
 export default async function ChargesPage() {
   const context = await getCurrentUserContext();
@@ -26,10 +27,11 @@ export default async function ChargesPage() {
     );
   }
 
-  const [canView, canCreate, canCollect] = await Promise.all([
+  const [canView, canCreate, canCollect, canDistribute] = await Promise.all([
     hasPermission(context, "charge", "view"),
     hasPermission(context, "charge", "create"),
     hasPermission(context, "payment", "create"),
+    hasPermission(context, "charge", "distribute"),
   ]);
 
   if (!canView) {
@@ -40,7 +42,7 @@ export default async function ChargesPage() {
     );
   }
 
-  const [chargesList, availableLeases] = await withOrganizationContext(
+  const [chargesList, availableLeases, distributedChargeIds] = await withOrganizationContext(
     getDb(),
     context.organizationId,
     async (tx) => {
@@ -75,7 +77,12 @@ export default async function ChargesPage() {
         })
         .from(leases);
 
-      return [list, leasesList] as const;
+      const distributedRows = await tx
+        .select({ sourceDocumentId: journalEntries.sourceDocumentId })
+        .from(journalEntries)
+        .where(eq(journalEntries.source, "owner_accrual"));
+
+      return [list, leasesList, new Set(distributedRows.map((row) => row.sourceDocumentId))] as const;
     },
   );
 
@@ -99,38 +106,48 @@ export default async function ChargesPage() {
               <th>Importe</th>
               <th>Saldo</th>
               <th>Estado</th>
-              {canCollect && <th></th>}
+              {(canCollect || canDistribute) && <th></th>}
             </tr>
           </thead>
           <tbody>
-            {chargesList.map((charge) => (
-              <tr key={charge.id}>
-                <td>{charge.period}</td>
-                <td>{charge.dueDate}</td>
-                <td>
-                  {charge.leaseNumber} ({charge.propertyName}/{charge.unitCode})
-                </td>
-                <td>{charge.tenantName ?? "—"}</td>
-                <td>
-                  {charge.originalAmount} {charge.currency}
-                </td>
-                <td>
-                  {charge.balance} {charge.currency}
-                </td>
-                <td>{charge.status}</td>
-                {canCollect && (
+            {chargesList.map((charge) => {
+              const isDistributed = distributedChargeIds.has(charge.id);
+              return (
+                <tr key={charge.id}>
+                  <td>{charge.period}</td>
+                  <td>{charge.dueDate}</td>
                   <td>
-                    {(charge.status === "pending" || charge.status === "partially_paid") && (
-                      <form action={collectChargeAction}>
-                        <input type="hidden" name="chargeId" value={charge.id} />
-                        <input type="hidden" name="amount" value={charge.balance} />
-                        <button type="submit">Cobrar {charge.balance}</button>
-                      </form>
-                    )}
+                    {charge.leaseNumber} ({charge.propertyName}/{charge.unitCode})
                   </td>
-                )}
-              </tr>
-            ))}
+                  <td>{charge.tenantName ?? "—"}</td>
+                  <td>
+                    {charge.originalAmount} {charge.currency}
+                  </td>
+                  <td>
+                    {charge.balance} {charge.currency}
+                  </td>
+                  <td>{charge.status}</td>
+                  {(canCollect || canDistribute) && (
+                    <td>
+                      {canCollect && (charge.status === "pending" || charge.status === "partially_paid") && (
+                        <form action={collectChargeAction} style={{ display: "inline" }}>
+                          <input type="hidden" name="chargeId" value={charge.id} />
+                          <input type="hidden" name="amount" value={charge.balance} />
+                          <button type="submit">Cobrar {charge.balance}</button>
+                        </form>
+                      )}
+                      {canDistribute && charge.status === "paid" && !isDistributed && (
+                        <form action={distributeChargeAction} style={{ display: "inline" }}>
+                          <input type="hidden" name="chargeId" value={charge.id} />
+                          <button type="submit">Liquidar</button>
+                        </form>
+                      )}
+                      {isDistributed && <span>Liquidado</span>}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

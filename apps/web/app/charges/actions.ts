@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { generateCharge, registerPaymentAndIssueReceipt } from "@farfalla/domain";
+import { distributeChargeToOwners, generateCharge, registerPaymentAndIssueReceipt } from "@farfalla/domain";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
@@ -52,4 +52,23 @@ export async function collectChargeAction(formData: FormData) {
 
   revalidatePath("/charges");
   revalidatePath("/receipts");
+}
+
+export async function distributeChargeAction(formData: FormData) {
+  const context = await getCurrentUserContext();
+  if (!context) throw new Error("No autenticado");
+
+  const allowed = await hasPermission(context, "charge", "distribute");
+  if (!allowed) throw new Error("No autorizado");
+
+  const chargeId = String(formData.get("chargeId") ?? "").trim();
+  if (!chargeId) throw new Error("Falta el cargo");
+
+  await distributeChargeToOwners(getDb(), {
+    organizationId: context.organizationId,
+    chargeId,
+    triggeredBy: context.userId,
+  });
+
+  revalidatePath("/charges");
 }

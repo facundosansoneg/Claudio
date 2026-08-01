@@ -5,4 +5,6 @@ export * from "./accounting/generate-charge";
 export * from "./accounting/register-payment";
 export * from "./accounting/reverse-receipt";
 export * from "./accounting/reprint-receipt";
+export * from "./accounting/distribute-charge-to-owners";
+export * from "./accounting/owner-statement";
 export * from "./seed/seed-demo-dataset";

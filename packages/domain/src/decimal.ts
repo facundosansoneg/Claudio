@@ -37,6 +37,7 @@ export function sumFixedPoint(values: bigint[]): bigint {
 }
 
 export const MONEY_SCALE = 6; // NUMERIC(20,6), CLAUDE.md regla 2
+export const PERCENTAGE_SCALE = 8; // NUMERIC(12,8), CLAUDE.md regla 2
 
 export function subtractMoney(a: string, b: string): string {
   const result = parseFixedPoint(a, MONEY_SCALE) - parseFixedPoint(b, MONEY_SCALE);
@@ -53,4 +54,16 @@ export function compareMoney(a: string, b: string): -1 | 0 | 1 {
   if (diff < 0n) return -1;
   if (diff > 0n) return 1;
   return 0;
+}
+
+/**
+ * amount * (percentage / 100), truncado hacia cero a NUMERIC(20,6). Ej.
+ * applyPercentage("30000.000000", "60") === "18000.000000".
+ */
+export function applyPercentage(amount: string, percentage: string): string {
+  const amountInt = parseFixedPoint(amount, MONEY_SCALE);
+  const percentageInt = parseFixedPoint(percentage, PERCENTAGE_SCALE);
+  const denominator = 10n ** BigInt(PERCENTAGE_SCALE + 2); // percentage ya escalado 10^8, más /100
+  const result = (amountInt * percentageInt) / denominator;
+  return formatFixedPoint(result, MONEY_SCALE);
 }

@@ -1,6 +1,5 @@
-import { formatFixedPoint, parseFixedPoint } from "../decimal";
+import { PERCENTAGE_SCALE, formatFixedPoint, parseFixedPoint } from "../decimal";
 
-const PERCENTAGE_SCALE = 8; // NUMERIC(12,8), CLAUDE.md regla 2
 const HUNDRED_PERCENT = parseFixedPoint("100", PERCENTAGE_SCALE);
 
 export const OWNERSHIP_DIMENSIONS = [
