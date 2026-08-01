@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: farfalla
+      POSTGRES_PASSWORD: farfalla
+      POSTGRES_DB: farfalla_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - farfalla-postgres-data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: farfalla
+      MINIO_ROOT_PASSWORD: farfalla12345
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - farfalla-minio-data:/data
+
+volumes:
+  farfalla-postgres-data:
+  farfalla-minio-data:

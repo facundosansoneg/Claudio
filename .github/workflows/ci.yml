@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: farfalla
+          POSTGRES_PASSWORD: farfalla
+          POSTGRES_DB: farfalla_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U farfalla"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://farfalla:farfalla@localhost:5432/farfalla_test
+      TEST_DATABASE_URL: postgres://farfalla:farfalla@localhost:5432/farfalla_test
+      AUTH_SECRET: ci-build-only-secret
+      AUTH_MICROSOFT_ENTRA_ID_ID: ci-placeholder
+      AUTH_MICROSOFT_ENTRA_ID_SECRET: ci-placeholder
+      AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Chequeo de tipos
+        run: pnpm run typecheck
+
+      # Regla no negociable (CLAUDE.md #11): correr migraciones en cada
+      # entrega. Los suites de test de @farfalla/database, @farfalla/auth
+      # y @farfalla/worker también migran su propia base al arrancar
+      # (beforeAll), pero este paso deja el gate explícito y separado.
+      - name: Migraciones de base de datos
+        run: pnpm --filter @farfalla/database run migrate
+
+      - name: Pruebas unitarias e integración
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
