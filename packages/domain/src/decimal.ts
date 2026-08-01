@@ -69,6 +69,25 @@ export function applyPercentage(amount: string, percentage: string): string {
 }
 
 /**
+ * Ratio entre dos montos de la misma moneda, expresado como
+ * porcentaje NUMERIC(12,8) — ej. computeRatioPercentage("30000",
+ * "500000") === "6.00000000" (yield bruto 6%). Trunca hacia cero,
+ * igual que applyPercentage. Nunca mezclar monedas distintas acá — la
+ * conversión de moneda es un paso separado y explícito, no algo que
+ * este helper haga por su cuenta.
+ */
+export function computeRatioPercentage(numerator: string, denominator: string): string {
+  const num = parseFixedPoint(numerator, MONEY_SCALE);
+  const den = parseFixedPoint(denominator, MONEY_SCALE);
+  if (den === 0n) {
+    throw new Error("No se puede calcular un ratio con denominador cero");
+  }
+  const scale = 10n ** BigInt(PERCENTAGE_SCALE);
+  const result = (num * scale * 100n) / den;
+  return formatFixedPoint(result, PERCENTAGE_SCALE);
+}
+
+/**
  * Ajusta `amount` a los límites [min, max] cuando corresponda (spec,
  * COMM-001: "importe mínimo"/"importe máximo" de un concepto de
  * comisión). Un límite en null se ignora.

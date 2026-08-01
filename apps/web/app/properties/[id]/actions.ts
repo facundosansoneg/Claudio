@@ -8,6 +8,7 @@ import {
   recordAuditEvent,
   ownershipInterests,
   taxExemptions,
+  valuations,
   type Database,
 } from "@farfalla/database";
 import { validateOwnershipInterests, type OwnershipInterestRecord } from "@farfalla/domain";
@@ -140,6 +141,58 @@ export async function createTaxExemptionAction(formData: FormData) {
       entityId: exemption.id,
       action: "create",
       newState: { propertyId, taxType, reason, documentReference, validFrom, validTo },
+    });
+  });
+
+  revalidatePath(`/properties/${propertyId}`);
+  redirect(`/properties/${propertyId}`);
+}
+
+export async function createValuationAction(formData: FormData) {
+  const context = await getCurrentUserContext();
+  if (!context) throw new Error("No autenticado");
+
+  const allowed = await hasPermission(context, "valuation", "create");
+  if (!allowed) throw new Error("No autorizado");
+
+  const propertyId = String(formData.get("propertyId") ?? "").trim();
+  const valuationDate = String(formData.get("valuationDate") ?? "").trim();
+  const value = String(formData.get("value") ?? "").trim();
+  const currency = String(formData.get("currency") ?? "USD");
+  const source = String(formData.get("source") ?? "").trim() || null;
+  const method = String(formData.get("method") ?? "").trim() || null;
+  const appraiser = String(formData.get("appraiser") ?? "").trim() || null;
+  const confidence = String(formData.get("confidence") ?? "").trim() || null;
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!propertyId || !valuationDate || !value) throw new Error("Faltan campos obligatorios");
+
+  await withOrganizationContext(getDb(), context.organizationId, async (tx) => {
+    const [valuation] = await tx
+      .insert(valuations)
+      .values({
+        organizationId: context.organizationId,
+        propertyId,
+        valuationDate,
+        value,
+        currency,
+        source,
+        method,
+        appraiser,
+        confidence,
+        notes,
+        createdBy: context.userId,
+      })
+      .returning({ id: valuations.id });
+    if (!valuation) throw new Error("No se pudo registrar la valoración");
+
+    await recordAuditEvent(tx, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      entityType: "valuations",
+      entityId: valuation.id,
+      action: "create",
+      newState: { propertyId, valuationDate, value, currency, source, method },
     });
   });
 

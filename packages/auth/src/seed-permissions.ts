@@ -45,6 +45,8 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "expense", action: "allocate", description: "Distribuir gasto entre propietarios" },
   { resource: "allocation_rule", action: "view", description: "Ver reglas de distribución de gastos" },
   { resource: "allocation_rule", action: "create", description: "Crear regla de distribución de gastos" },
+  { resource: "valuation", action: "view", description: "Ver valoraciones y yield" },
+  { resource: "valuation", action: "create", description: "Registrar valoración" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

@@ -141,6 +141,20 @@
       "when": 1785626522941,
       "tag": "0019_enable_rls_expenses_allocation",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785626962543,
+      "tag": "0020_add_valuations",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785626966595,
+      "tag": "0021_enable_rls_valuations",
+      "breakpoints": true
     }
   ]
 }

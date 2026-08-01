@@ -13,4 +13,5 @@ export * from "./accounting/resolve-vat-rate";
 export * from "./invoicing/create-manual-invoice-draft";
 export * from "./invoicing/confirm-manual-invoice";
 export * from "./expenses/run-expense-allocation";
+export * from "./patrimonial/get-property-yield";
 export * from "./seed/seed-demo-dataset";

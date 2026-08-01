@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
-import { withOrganizationContext, properties, ownershipInterests, owners, parties, taxExemptions } from "@farfalla/database";
+import { desc, eq } from "drizzle-orm";
+import { withOrganizationContext, properties, ownershipInterests, owners, parties, taxExemptions, valuations } from "@farfalla/database";
+import { getPropertyYield } from "@farfalla/domain";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
-import { createOwnershipInterestAction, createTaxExemptionAction } from "./actions";
+import { createOwnershipInterestAction, createTaxExemptionAction, createValuationAction } from "./actions";
 
 export default async function PropertyDetailPage({
   params,
@@ -26,12 +27,15 @@ export default async function PropertyDetailPage({
     );
   }
 
-  const [canView, canCreate, canViewExemptions, canCreateExemptions] = await Promise.all([
-    hasPermission(context, "ownership_interest", "view"),
-    hasPermission(context, "ownership_interest", "create"),
-    hasPermission(context, "tax_exemption", "view"),
-    hasPermission(context, "tax_exemption", "create"),
-  ]);
+  const [canView, canCreate, canViewExemptions, canCreateExemptions, canViewValuations, canCreateValuations] =
+    await Promise.all([
+      hasPermission(context, "ownership_interest", "view"),
+      hasPermission(context, "ownership_interest", "create"),
+      hasPermission(context, "tax_exemption", "view"),
+      hasPermission(context, "tax_exemption", "create"),
+      hasPermission(context, "valuation", "view"),
+      hasPermission(context, "valuation", "create"),
+    ]);
 
   if (!canView) {
     return (
@@ -69,7 +73,13 @@ export default async function PropertyDetailPage({
 
     const exemptions = await tx.select().from(taxExemptions).where(eq(taxExemptions.propertyId, id));
 
-    return { property, interests, ownersList, exemptions };
+    const valuationsList = await tx
+      .select()
+      .from(valuations)
+      .where(eq(valuations.propertyId, id))
+      .orderBy(desc(valuations.valuationDate));
+
+    return { property, interests, ownersList, exemptions, valuationsList };
   });
 
   if (!data) {
@@ -82,7 +92,15 @@ export default async function PropertyDetailPage({
     );
   }
 
-  const { property, interests, ownersList, exemptions } = data;
+  const yieldResult = canViewValuations
+    ? await getPropertyYield(getDb(), {
+        organizationId: context.organizationId,
+        propertyId: id,
+        asOfDate: new Date().toISOString().slice(0, 10),
+      })
+    : null;
+
+  const { property, interests, ownersList, exemptions, valuationsList } = data;
 
   // TAX-004: aviso visual de vencimiento próximo. El umbral en días
   // todavía no está en `parameters` (pendiente de Hito 6, cuando se
@@ -296,6 +314,117 @@ export default async function PropertyDetailPage({
                 </label>
               </div>
               <button type="submit">Registrar exoneración</button>
+            </form>
+          )}
+        </>
+      )}
+
+      {canViewValuations && (
+        <>
+          <h2>Valoraciones y yield</h2>
+          {yieldResult?.marketValue ? (
+            <p>
+              <strong>
+                Última valoración: {yieldResult.marketValue} {yieldResult.marketValueCurrency} ({yieldResult.valuationDate})
+              </strong>
+              <br />
+              {yieldResult.grossYieldPercentage !== null ? (
+                <>Yield bruto sobre valor de mercado: {yieldResult.grossYieldPercentage}%</>
+              ) : (
+                <>
+                  Yield bruto no calculable — no hay contrato activo en {yieldResult.marketValueCurrency} para
+                  comparar contra la valoración.
+                </>
+              )}
+            </p>
+          ) : (
+            <p>Sin valoraciones registradas todavía — no se puede calcular yield.</p>
+          )}
+
+          {valuationsList.length === 0 ? (
+            <p>Todavía no hay valoraciones registradas.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Valor</th>
+                  <th>Fuente</th>
+                  <th>Método</th>
+                  <th>Tasador</th>
+                  <th>Confianza</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valuationsList.map((valuation) => (
+                  <tr key={valuation.id}>
+                    <td>{valuation.valuationDate}</td>
+                    <td>
+                      {valuation.value} {valuation.currency}
+                    </td>
+                    <td>{valuation.source ?? "—"}</td>
+                    <td>{valuation.method ?? "—"}</td>
+                    <td>{valuation.appraiser ?? "—"}</td>
+                    <td>{valuation.confidence ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {canCreateValuations && (
+            <form action={createValuationAction}>
+              <input type="hidden" name="propertyId" value={property.id} />
+              <div>
+                <label>
+                  Fecha <input type="date" name="valuationDate" required />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Valor <input name="value" type="number" step="0.000001" required />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Moneda{" "}
+                  <select name="currency" defaultValue="USD">
+                    <option value="USD">USD</option>
+                    <option value="UYU">UYU</option>
+                  </select>
+                </label>
+              </div>
+              <div>
+                <label>
+                  Fuente <input name="source" placeholder="Tasador, corredor, catastro..." />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Método <input name="method" placeholder="Comparables, costo, ingreso..." />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Tasador <input name="appraiser" />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Confianza{" "}
+                  <select name="confidence" defaultValue="medium">
+                    <option value="low">Baja</option>
+                    <option value="medium">Media</option>
+                    <option value="high">Alta</option>
+                  </select>
+                </label>
+              </div>
+              <div>
+                <label>
+                  Observaciones <input name="notes" />
+                </label>
+              </div>
+              <button type="submit">Registrar valoración</button>
             </form>
           )}
         </>
