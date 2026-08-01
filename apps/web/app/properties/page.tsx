@@ -18,9 +18,10 @@ export default async function PropertiesPage() {
     );
   }
 
-  const [canView, canCreate] = await Promise.all([
+  const [canView, canCreate, canEdit] = await Promise.all([
     hasPermission(context, "property", "view"),
     hasPermission(context, "property", "create"),
+    hasPermission(context, "property", "edit"),
   ]);
 
   if (!canView) {
@@ -63,6 +64,7 @@ export default async function PropertiesPage() {
               <th>Tipo</th>
               <th>Ciudad</th>
               <th>Ocupación</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -73,6 +75,15 @@ export default async function PropertiesPage() {
                 <td>{property.propertyType}</td>
                 <td>{property.city ?? "—"}</td>
                 <td>{property.occupancyStatus}</td>
+                <td>
+                  <Link href={`/properties/${property.id}`}>Participaciones</Link>
+                  {canEdit && (
+                    <>
+                      {" · "}
+                      <Link href={`/properties/${property.id}/edit`}>Editar</Link>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

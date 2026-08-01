@@ -18,9 +18,10 @@ export default async function OwnersPage() {
     );
   }
 
-  const [canView, canCreate] = await Promise.all([
+  const [canView, canCreate, canEdit] = await Promise.all([
     hasPermission(context, "owner", "view"),
     hasPermission(context, "owner", "create"),
+    hasPermission(context, "owner", "edit"),
   ]);
 
   if (!canView) {
@@ -62,6 +63,7 @@ export default async function OwnersPage() {
               <th>Documento</th>
               <th>Tipo de liquidación</th>
               <th>Estado</th>
+              {canEdit && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -71,6 +73,11 @@ export default async function OwnersPage() {
                 <td>{owner.documentNumber ?? "—"}</td>
                 <td>{owner.settlementType}</td>
                 <td>{owner.status}</td>
+                {canEdit && (
+                  <td>
+                    <Link href={`/owners/${owner.id}/edit`}>Editar</Link>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

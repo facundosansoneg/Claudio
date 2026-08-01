@@ -51,4 +51,5 @@ export async function collectChargeAction(formData: FormData) {
   });
 
   revalidatePath("/charges");
+  revalidatePath("/receipts");
 }

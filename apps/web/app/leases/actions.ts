@@ -1,6 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
   withOrganizationContext,
@@ -70,4 +71,54 @@ export async function createLeaseAction(formData: FormData) {
   });
 
   revalidatePath("/leases");
+}
+
+export async function updateLeaseAction(formData: FormData) {
+  const context = await getCurrentUserContext();
+  if (!context) throw new Error("No autenticado");
+
+  const allowed = await hasPermission(context, "lease", "edit");
+  if (!allowed) throw new Error("No autorizado");
+
+  const leaseId = String(formData.get("leaseId") ?? "").trim();
+  const leaseNumber = String(formData.get("leaseNumber") ?? "").trim();
+  const startDate = String(formData.get("startDate") ?? "").trim();
+  const endDate = String(formData.get("endDate") ?? "").trim();
+  const currency = String(formData.get("currency") ?? "UYU");
+  const initialRent = String(formData.get("initialRent") ?? "").trim();
+  const status = String(formData.get("status") ?? "active");
+
+  if (!leaseId || !leaseNumber || !startDate || !endDate || !initialRent) {
+    throw new Error("Faltan campos obligatorios");
+  }
+
+  await withOrganizationContext(getDb(), context.organizationId, async (tx: Database) => {
+    const [previous] = await tx.select().from(leases).where(eq(leases.id, leaseId));
+    if (!previous) throw new Error("Contrato no encontrado");
+
+    await tx
+      .update(leases)
+      .set({ leaseNumber, startDate, endDate, currency, initialRent, status, updatedBy: context.userId })
+      .where(eq(leases.id, leaseId));
+
+    await recordAuditEvent(tx, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      entityType: "leases",
+      entityId: leaseId,
+      action: "update",
+      previousState: {
+        leaseNumber: previous.leaseNumber,
+        startDate: previous.startDate,
+        endDate: previous.endDate,
+        currency: previous.currency,
+        initialRent: previous.initialRent,
+        status: previous.status,
+      },
+      newState: { leaseNumber, startDate, endDate, currency, initialRent, status },
+    });
+  });
+
+  revalidatePath("/leases");
+  redirect("/leases");
 }

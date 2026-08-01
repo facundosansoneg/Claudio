@@ -18,9 +18,10 @@ export default async function TenantsPage() {
     );
   }
 
-  const [canView, canCreate] = await Promise.all([
+  const [canView, canCreate, canEdit] = await Promise.all([
     hasPermission(context, "tenant", "view"),
     hasPermission(context, "tenant", "create"),
+    hasPermission(context, "tenant", "edit"),
   ]);
 
   if (!canView) {
@@ -60,6 +61,7 @@ export default async function TenantsPage() {
               <th>Nombre</th>
               <th>Documento</th>
               <th>Estado</th>
+              {canEdit && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -68,6 +70,11 @@ export default async function TenantsPage() {
                 <td>{tenant.displayName}</td>
                 <td>{tenant.documentNumber ?? "—"}</td>
                 <td>{tenant.status}</td>
+                {canEdit && (
+                  <td>
+                    <Link href={`/tenants/${tenant.id}/edit`}>Editar</Link>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

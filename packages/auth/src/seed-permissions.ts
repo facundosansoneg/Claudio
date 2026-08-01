@@ -9,15 +9,23 @@ import { permissions, rolePermissions, type Database } from "@farfalla/database"
 export const PERMISSION_DEFINITIONS = [
   { resource: "owner", action: "view", description: "Ver propietarios" },
   { resource: "owner", action: "create", description: "Alta de propietario" },
+  { resource: "owner", action: "edit", description: "Editar propietario" },
   { resource: "property", action: "view", description: "Ver propiedades" },
   { resource: "property", action: "create", description: "Alta de propiedad" },
+  { resource: "property", action: "edit", description: "Editar propiedad" },
   { resource: "tenant", action: "view", description: "Ver inquilinos" },
   { resource: "tenant", action: "create", description: "Alta de inquilino" },
+  { resource: "tenant", action: "edit", description: "Editar inquilino" },
   { resource: "lease", action: "view", description: "Ver contratos" },
   { resource: "lease", action: "create", description: "Alta de contrato" },
+  { resource: "lease", action: "edit", description: "Editar contrato" },
   { resource: "charge", action: "view", description: "Ver cargos" },
   { resource: "charge", action: "create", description: "Generar cargos" },
   { resource: "payment", action: "create", description: "Registrar cobros" },
+  { resource: "receipt", action: "reprint", description: "Reimprimir recibo" },
+  { resource: "receipt", action: "reverse", description: "Anular recibo" },
+  { resource: "ownership_interest", action: "view", description: "Ver participaciones" },
+  { resource: "ownership_interest", action: "create", description: "Asignar participación" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

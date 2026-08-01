@@ -43,6 +43,11 @@ export function subtractMoney(a: string, b: string): string {
   return formatFixedPoint(result, MONEY_SCALE);
 }
 
+export function addMoney(a: string, b: string): string {
+  const result = parseFixedPoint(a, MONEY_SCALE) + parseFixedPoint(b, MONEY_SCALE);
+  return formatFixedPoint(result, MONEY_SCALE);
+}
+
 export function compareMoney(a: string, b: string): -1 | 0 | 1 {
   const diff = parseFixedPoint(a, MONEY_SCALE) - parseFixedPoint(b, MONEY_SCALE);
   if (diff < 0n) return -1;

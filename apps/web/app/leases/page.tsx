@@ -26,9 +26,10 @@ export default async function LeasesPage() {
     );
   }
 
-  const [canView, canCreate] = await Promise.all([
+  const [canView, canCreate, canEdit] = await Promise.all([
     hasPermission(context, "lease", "view"),
     hasPermission(context, "lease", "create"),
+    hasPermission(context, "lease", "edit"),
   ]);
 
   if (!canView) {
@@ -93,6 +94,7 @@ export default async function LeasesPage() {
               <th>Inquilino</th>
               <th>Alquiler</th>
               <th>Estado</th>
+              {canEdit && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -107,6 +109,11 @@ export default async function LeasesPage() {
                   {lease.initialRent} {lease.currency}
                 </td>
                 <td>{lease.status}</td>
+                {canEdit && (
+                  <td>
+                    <Link href={`/leases/${lease.id}/edit`}>Editar</Link>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
