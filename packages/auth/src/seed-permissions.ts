@@ -35,6 +35,11 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "commission_concept", action: "view", description: "Ver conceptos de comisión" },
   { resource: "commission_concept", action: "create", description: "Crear concepto de comisión" },
   { resource: "commission_concept", action: "override", description: "Asignar override de comisión por propietario" },
+  { resource: "invoice_series", action: "view", description: "Ver series de numeración" },
+  { resource: "invoice_series", action: "create", description: "Crear serie de numeración" },
+  { resource: "invoice", action: "view", description: "Ver facturas" },
+  { resource: "invoice", action: "create", description: "Crear factura manual" },
+  { resource: "invoice", action: "confirm", description: "Confirmar factura manual" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

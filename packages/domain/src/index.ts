@@ -10,4 +10,6 @@ export * from "./accounting/owner-statement";
 export * from "./accounting/expiring-tax-exemptions";
 export * from "./accounting/resolve-commission-concept";
 export * from "./accounting/resolve-vat-rate";
+export * from "./invoicing/create-manual-invoice-draft";
+export * from "./invoicing/confirm-manual-invoice";
 export * from "./seed/seed-demo-dataset";

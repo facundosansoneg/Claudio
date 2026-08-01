@@ -113,6 +113,20 @@
       "when": 1785624135890,
       "tag": "0015_add_lease_commission_concept_code",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1785625864794,
+      "tag": "0016_add_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1785625869429,
+      "tag": "0017_enable_rls_invoices",
+      "breakpoints": true
     }
   ]
 }
