@@ -106,6 +106,13 @@
       "when": 1785623770209,
       "tag": "0014_enable_rls_commission_concepts",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1785624135890,
+      "tag": "0015_add_lease_commission_concept_code",
+      "breakpoints": true
     }
   ]
 }

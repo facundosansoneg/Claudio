@@ -6,6 +6,8 @@ import {
   ownershipInterests,
   taxProfiles,
   taxExemptions,
+  commissionConcepts,
+  commissionConceptOverrides,
   journalEntries,
   journalLines,
   ledgerAccounts,
@@ -13,8 +15,9 @@ import {
   withOrganizationContext,
   type Database,
 } from "@farfalla/database";
-import { applyPercentage, compareMoney, subtractMoney } from "../decimal";
+import { applyPercentage, clampMoney, compareMoney, subtractMoney } from "../decimal";
 import { ACCOUNT_CODES } from "./chart-of-accounts";
+import { resolveVatRate } from "./resolve-vat-rate";
 
 export interface DistributeChargeToOwnersInput {
   organizationId: string;
@@ -26,6 +29,7 @@ export interface OwnerDistribution {
   ownerId: string;
   grossShare: string;
   commission: string;
+  commissionVat: string;
   taxWithholding: string;
   taxExempt: boolean;
   netToOwner: string;
@@ -62,8 +66,13 @@ function isActiveAt<T extends { validFrom: string; validTo: string | null }>(
  * sección 3). Solo distribuye cargos ya cobrados por completo
  * (idempotente: una segunda llamada no duplica los asientos).
  *
- * La comisión se calcula sobre `leases.commission_on_rent_percentage`
- * (LEASE-004); la retención fiscal usa `ownership_interests.tax_contribution_percentage`
+ * Si el contrato tiene `commission_concept_code` (COMM-001), la comisión
+ * se calcula desde ese concepto del catálogo — con el override del
+ * propietario si existe uno vigente (COMM-002), mínimo/máximo aplicados,
+ * y su IVA correspondiente (débito 2100 adicional / crédito 2200) si el
+ * concepto lo marca. Si el contrato no referencia un concepto, se usa
+ * la negociación puntual `leases.commission_on_rent_percentage`
+ * (LEASE-004) como antes, sin IVA. La retención fiscal usa `ownership_interests.tax_contribution_percentage`
  * como base (TAX-003: el aporte fiscal puede ser distinto de la
  * participación económica) multiplicado por la tasa vigente del
  * propietario en `tax_profiles`. Si un propietario no tiene tax_profile
@@ -109,11 +118,57 @@ export async function distributeChargeToOwners(
       .from(taxExemptions)
       .where(eq(taxExemptions.propertyId, unit.propertyId));
 
+    // COMM-001/002: si el contrato referencia un concepto de comisión
+    // del catálogo, se resuelve acá (una sola vez) junto con los
+    // overrides por propietario vigentes a la fecha del cargo.
+    let activeCommissionConcept: typeof commissionConcepts.$inferSelect | null = null;
+    let activeOverridesByOwner = new Map<string, typeof commissionConceptOverrides.$inferSelect>();
+    if (lease.commissionConceptCode) {
+      const concepts = await tx
+        .select()
+        .from(commissionConcepts)
+        .where(
+          and(
+            eq(commissionConcepts.organizationId, input.organizationId),
+            eq(commissionConcepts.code, lease.commissionConceptCode),
+          ),
+        );
+      activeCommissionConcept = concepts.find((c) => isActiveAt(c, charge.dueDate)) ?? null;
+
+      if (activeCommissionConcept) {
+        const overrides = await tx
+          .select()
+          .from(commissionConceptOverrides)
+          .where(eq(commissionConceptOverrides.commissionConceptId, activeCommissionConcept.id));
+        activeOverridesByOwner = new Map(
+          activeInterests
+            .map((interest) => [interest.ownerId, overrides.find((o) => o.ownerId === interest.ownerId && isActiveAt(o, charge.dueDate))] as const)
+            .filter((entry): entry is [string, typeof commissionConceptOverrides.$inferSelect] => entry[1] !== undefined),
+        );
+      }
+    }
+    const vatRate = activeCommissionConcept?.hasVat
+      ? await resolveVatRate(tx, input.organizationId, charge.dueDate)
+      : null;
+
     const distributions: OwnerDistribution[] = activeInterests.map((interest) => {
       const grossShare = applyPercentage(charge.originalAmount, interest.rentDistributionPercentage);
-      const commission = lease.commissionOnRentPercentage
-        ? applyPercentage(grossShare, lease.commissionOnRentPercentage)
-        : "0.000000";
+
+      let commission: string;
+      let commissionVat = "0.000000";
+      if (activeCommissionConcept) {
+        const override = activeOverridesByOwner.get(interest.ownerId);
+        const percentage = override?.percentage ?? activeCommissionConcept.percentage;
+        const min = override?.minAmount ?? activeCommissionConcept.minAmount;
+        const max = override?.maxAmount ?? activeCommissionConcept.maxAmount;
+        commission = clampMoney(applyPercentage(grossShare, percentage), min, max);
+        if (vatRate) commissionVat = applyPercentage(commission, vatRate);
+      } else {
+        commission = lease.commissionOnRentPercentage
+          ? applyPercentage(grossShare, lease.commissionOnRentPercentage)
+          : "0.000000";
+      }
+
       const taxBase = applyPercentage(charge.originalAmount, interest.taxContributionPercentage);
       const activeTaxProfile = allTaxProfiles.find(
         (profile) => profile.ownerId === interest.ownerId && isActiveAt(profile, charge.dueDate),
@@ -125,15 +180,19 @@ export async function distributeChargeToOwners(
         : false;
       const taxWithholding =
         activeTaxProfile && !taxExempt ? applyPercentage(taxBase, activeTaxProfile.percentage) : "0.000000";
-      const netToOwner = subtractMoney(subtractMoney(grossShare, commission), taxWithholding);
+      const netToOwner = subtractMoney(
+        subtractMoney(subtractMoney(grossShare, commission), commissionVat),
+        taxWithholding,
+      );
 
-      return { ownerId: interest.ownerId, grossShare, commission, taxWithholding, taxExempt, netToOwner };
+      return { ownerId: interest.ownerId, grossShare, commission, commissionVat, taxWithholding, taxExempt, netToOwner };
     });
 
     const receivableFundsAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.OWNER_FUNDS_PAYABLE);
     const rentIncomeAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.RENT_INCOME);
     const commissionIncomeAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.COMMISSION_INCOME);
     const taxWithholdingAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.TAX_WITHHOLDING_PAYABLE);
+    const vatPayableAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.VAT_PAYABLE);
 
     const baseDimensions = {
       propertyId: unit.propertyId,
@@ -225,6 +284,54 @@ export async function distributeChargeToOwners(
             credit: d.commission,
             originalCurrency: charge.currency,
             originalAmount: d.commission,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+        ]),
+      );
+    }
+
+    // Paso 3 (IVA sobre la comisión): débito Fondos de propietarios adicional /
+    // crédito IVA débito (docs/accounting-rules.md, sección 3, paso 3).
+    const vatLines = distributions.filter((d) => compareMoney(d.commissionVat, "0") > 0);
+    if (vatLines.length > 0) {
+      const [vatEntry] = await tx
+        .insert(journalEntries)
+        .values({
+          organizationId: input.organizationId,
+          economicDate: charge.dueDate,
+          accountingDate: charge.dueDate,
+          period: charge.period,
+          source: "commission_vat",
+          sourceDocumentType: "charges",
+          sourceDocumentId: charge.id,
+          description: `IVA sobre comisión de administración ${charge.period}`,
+          createdBy: input.triggeredBy,
+        })
+        .returning({ id: journalEntries.id });
+      if (!vatEntry) throw new Error("No se pudo crear el asiento de IVA sobre comisión");
+
+      await tx.insert(journalLines).values(
+        vatLines.flatMap((d) => [
+          {
+            organizationId: input.organizationId,
+            journalEntryId: vatEntry.id,
+            accountId: receivableFundsAccountId,
+            debit: d.commissionVat,
+            credit: "0",
+            originalCurrency: charge.currency,
+            originalAmount: d.commissionVat,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+          {
+            organizationId: input.organizationId,
+            journalEntryId: vatEntry.id,
+            accountId: vatPayableAccountId,
+            debit: "0",
+            credit: d.commissionVat,
+            originalCurrency: charge.currency,
+            originalAmount: d.commissionVat,
             ownerId: d.ownerId,
             ...baseDimensions,
           },

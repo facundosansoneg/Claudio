@@ -29,6 +29,8 @@ export async function createLeaseAction(formData: FormData) {
   const endDate = String(formData.get("endDate") ?? "").trim();
   const currency = String(formData.get("currency") ?? "UYU");
   const initialRent = String(formData.get("initialRent") ?? "").trim();
+  const commissionOnRentPercentage = String(formData.get("commissionOnRentPercentage") ?? "").trim() || null;
+  const commissionConceptCode = String(formData.get("commissionConceptCode") ?? "").trim() || null;
 
   if (!unitId || !tenantId || !leaseNumber || !startDate || !endDate || !initialRent) {
     throw new Error("Faltan campos obligatorios");
@@ -48,6 +50,8 @@ export async function createLeaseAction(formData: FormData) {
         endDate,
         currency,
         initialRent,
+        commissionOnRentPercentage,
+        commissionConceptCode,
       })
       .returning({ id: leases.id });
     if (!lease) throw new Error("No se pudo crear el contrato");
@@ -87,6 +91,8 @@ export async function updateLeaseAction(formData: FormData) {
   const currency = String(formData.get("currency") ?? "UYU");
   const initialRent = String(formData.get("initialRent") ?? "").trim();
   const status = String(formData.get("status") ?? "active");
+  const commissionOnRentPercentage = String(formData.get("commissionOnRentPercentage") ?? "").trim() || null;
+  const commissionConceptCode = String(formData.get("commissionConceptCode") ?? "").trim() || null;
 
   if (!leaseId || !leaseNumber || !startDate || !endDate || !initialRent) {
     throw new Error("Faltan campos obligatorios");
@@ -98,7 +104,17 @@ export async function updateLeaseAction(formData: FormData) {
 
     await tx
       .update(leases)
-      .set({ leaseNumber, startDate, endDate, currency, initialRent, status, updatedBy: context.userId })
+      .set({
+        leaseNumber,
+        startDate,
+        endDate,
+        currency,
+        initialRent,
+        status,
+        commissionOnRentPercentage,
+        commissionConceptCode,
+        updatedBy: context.userId,
+      })
       .where(eq(leases.id, leaseId));
 
     await recordAuditEvent(tx, {
@@ -114,8 +130,19 @@ export async function updateLeaseAction(formData: FormData) {
         currency: previous.currency,
         initialRent: previous.initialRent,
         status: previous.status,
+        commissionOnRentPercentage: previous.commissionOnRentPercentage,
+        commissionConceptCode: previous.commissionConceptCode,
       },
-      newState: { leaseNumber, startDate, endDate, currency, initialRent, status },
+      newState: {
+        leaseNumber,
+        startDate,
+        endDate,
+        currency,
+        initialRent,
+        status,
+        commissionOnRentPercentage,
+        commissionConceptCode,
+      },
     });
   });
 

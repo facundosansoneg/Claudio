@@ -33,6 +33,12 @@ export const leases = pgTable("leases", {
     precision: 12,
     scale: 8,
   }),
+  // Referencia opcional a commission_concepts.code (COMM-001). Si está
+  // seteado, la comisión de administración se calcula desde el
+  // catálogo (con overrides por propietario, mínimo/máximo e IVA); si
+  // no, se usa la negociación puntual de commission_on_rent_percentage
+  // como hasta ahora.
+  commissionConceptCode: text("commission_concept_code"),
   status: text("status").notNull().default("active"), // draft, active, terminated, expired
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

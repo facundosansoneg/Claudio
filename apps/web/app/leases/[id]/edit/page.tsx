@@ -91,6 +91,31 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
             </select>
           </label>
         </div>
+        <div>
+          <label>
+            % Comisión negociada (opcional, sin IVA/mínimo/máximo){" "}
+            <input
+              name="commissionOnRentPercentage"
+              type="number"
+              step="0.00000001"
+              defaultValue={lease.commissionOnRentPercentage ?? ""}
+            />
+          </label>
+        </div>
+        <div>
+          <label>
+            Código de concepto de comisión (opcional — usa el catálogo en vez
+            de la negociación puntual){" "}
+            <input name="commissionConceptCode" defaultValue={lease.commissionConceptCode ?? ""} />
+          </label>
+        </div>
+        <p>
+          <small>
+            Si se completa el código de concepto, la comisión se calcula desde{" "}
+            <a href="/commission-concepts">Conceptos de comisión</a> (con su IVA, mínimo y
+            máximo) y se ignora el porcentaje negociado de arriba.
+          </small>
+        </p>
         <button type="submit">Guardar</button>
       </form>
     </main>

@@ -17,6 +17,9 @@ import {
   leaseParties,
   taxProfiles,
   taxExemptions,
+  commissionConcepts,
+  commissionConceptOverrides,
+  parameters,
   type Database,
 } from "@farfalla/database";
 import { seedChartOfAccounts } from "../src/accounting/chart-of-accounts";
@@ -138,7 +141,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.execute(
-    sql`TRUNCATE TABLE receipts, payment_allocations, payments, journal_lines, journal_entries, charges, lease_parties, leases, tenants, tax_profiles, tax_exemptions, ownership_interests, units, properties, owners, parties, ledger_accounts, users, organizations RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE receipts, payment_allocations, payments, journal_lines, journal_entries, charges, lease_parties, leases, tenants, tax_profiles, tax_exemptions, commission_concept_overrides, commission_concepts, parameters, ownership_interests, units, properties, owners, parties, ledger_accounts, users, organizations RESTART IDENTITY CASCADE`,
   );
 });
 
@@ -266,6 +269,142 @@ describe("distributeChargeToOwners — TAX-003 (aporte fiscal distinto del econ�
     expect(ownerA?.taxExempt).toBe(true);
     expect(ownerA?.taxWithholding).toBe("0.000000");
     expect(ownerA?.netToOwner).toBe("16200.000000"); // 18000 - 1800 comisión - 0 retención
+  });
+
+  it("COMM-001/002: usa el concepto de comisión del contrato con override, mínimo/máximo e IVA", async () => {
+    const organizationId = randomUUID();
+    const { ownerId, leaseId, userId } = await withOrganizationContext(db, organizationId, async (tx) => {
+      await tx.insert(organizations).values({ id: organizationId, name: "Org de prueba" });
+      const [user] = await tx
+        .insert(users)
+        .values({ organizationId, email: `${randomUUID()}@farfalla.uy`, displayName: "Operador" })
+        .returning({ id: users.id });
+
+      const [party] = await tx
+        .insert(parties)
+        .values({ organizationId, partyType: "person", displayName: "Propietario único" })
+        .returning({ id: parties.id });
+      const [owner] = await tx.insert(owners).values({ organizationId, partyId: party!.id }).returning({ id: owners.id });
+
+      const [property] = await tx
+        .insert(properties)
+        .values({ organizationId, internalCode: "P-2", name: "Propiedad única", propertyType: "apartamento" })
+        .returning({ id: properties.id });
+      const [unit] = await tx
+        .insert(units)
+        .values({ organizationId, propertyId: property!.id, unitCode: "1", unitType: "apartamento" })
+        .returning({ id: units.id });
+
+      await tx.insert(ownershipInterests).values({
+        organizationId,
+        propertyId: property!.id,
+        ownerId: owner!.id,
+        legalPercentage: "100",
+        economicPercentage: "100",
+        rentDistributionPercentage: "100",
+        taxContributionPercentage: "100",
+      });
+
+      const [tenantParty] = await tx
+        .insert(parties)
+        .values({ organizationId, partyType: "person", displayName: "Inquilino" })
+        .returning({ id: parties.id });
+      const [tenant] = await tx.insert(tenants).values({ organizationId, partyId: tenantParty!.id }).returning({ id: tenants.id });
+
+      // Sin commissionOnRentPercentage a propósito: la comisión debe
+      // salir enteramente del concepto del catálogo.
+      const [lease] = await tx
+        .insert(leases)
+        .values({
+          organizationId,
+          unitId: unit!.id,
+          leaseNumber: "L-2",
+          startDate: "2026-01-01",
+          endDate: "2027-12-31",
+          currency: "UYU",
+          initialRent: "30000.000000",
+          commissionConceptCode: "RENT-COMM",
+        })
+        .returning({ id: leases.id });
+
+      await tx.insert(leaseParties).values({
+        organizationId,
+        leaseId: lease!.id,
+        partyId: tenantParty!.id,
+        tenantId: tenant!.id,
+        role: "tenant",
+      });
+
+      // Concepto base: 10%, tope 2000. Override del propietario: 15%
+      // (el override gana), tope se hereda del concepto (no lo pisa).
+      const [concept] = await tx
+        .insert(commissionConcepts)
+        .values({
+          organizationId,
+          code: "RENT-COMM",
+          name: "Comisión sobre alquiler",
+          paymentDestination: "administration",
+          conceptType: "owner",
+          percentage: "10",
+          maxAmount: "2000.000000",
+          hasVat: true,
+          hasCommissionTax: false,
+          validFrom: "2020-01-01",
+        })
+        .returning({ id: commissionConcepts.id });
+      await tx.insert(commissionConceptOverrides).values({
+        organizationId,
+        commissionConceptId: concept!.id,
+        ownerId: owner!.id,
+        percentage: "15",
+        validFrom: "2020-01-01",
+      });
+
+      await tx.insert(parameters).values({
+        organizationId,
+        category: "vat_rate",
+        code: "general",
+        label: "IVA general",
+        value: { percentage: "22" },
+        validFrom: "2020-01-01",
+      });
+
+      return { ownerId: owner!.id, leaseId: lease!.id, userId: user!.id };
+    });
+    await withOrganizationContext(db, organizationId, (tx) => seedChartOfAccounts(tx, organizationId));
+
+    const charge = await generateCharge(db, {
+      organizationId,
+      leaseId,
+      chargeType: "rent",
+      period: "2026-08",
+      dueDate: "2026-08-01",
+      amount: "30000.000000",
+      triggeredBy: userId,
+    });
+    await registerPaymentAndIssueReceipt(db, {
+      organizationId,
+      chargeId: charge.chargeId,
+      paymentDate: "2026-08-05",
+      amount: "30000.000000",
+      triggeredBy: userId,
+    });
+
+    const { distributions } = await distributeChargeToOwners(db, {
+      organizationId,
+      chargeId: charge.chargeId,
+      triggeredBy: userId,
+    });
+
+    const owner = distributions.find((d) => d.ownerId === ownerId);
+    // 15% de 30000 = 4500, pero el tope heredado del concepto es 2000
+    // => la comisión se recorta a 2000. IVA 22% de 2000 = 440.
+    expect(owner?.commission).toBe("2000.000000");
+    expect(owner?.commissionVat).toBe("440.000000");
+    expect(owner?.netToOwner).toBe("27560.000000"); // 30000 - 2000 - 440 - 0 retención
+
+    const statement = await getOwnerStatement(db, organizationId, ownerId);
+    expect(statement.balances).toEqual([{ currency: "UYU", balance: "27560.000000" }]);
   });
 
   it("no permite liquidar un cargo que no está completamente pagado", async () => {

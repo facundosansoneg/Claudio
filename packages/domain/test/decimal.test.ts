@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPercentage, formatFixedPoint, parseFixedPoint, sumFixedPoint } from "../src/decimal";
+import { applyPercentage, clampMoney, formatFixedPoint, parseFixedPoint, sumFixedPoint } from "../src/decimal";
 
 describe("decimal (aritmética de punto fijo con BigInt)", () => {
   it("parsea y formatea sin perder precisión", () => {
@@ -25,5 +25,12 @@ describe("decimal (aritmética de punto fijo con BigInt)", () => {
     expect(applyPercentage("30000.000000", "40")).toBe("12000.000000");
     expect(applyPercentage("30000.000000", "0")).toBe("0.000000");
     expect(applyPercentage("100.000000", "33.333333")).toBe("33.333333");
+  });
+
+  it("clampMoney respeta mínimo y máximo, ignorando límites en null", () => {
+    expect(clampMoney("500.000000", "1000.000000", null)).toBe("1000.000000"); // sube al mínimo
+    expect(clampMoney("5000.000000", null, "2000.000000")).toBe("2000.000000"); // baja al máximo
+    expect(clampMoney("1500.000000", "1000.000000", "2000.000000")).toBe("1500.000000"); // dentro del rango
+    expect(clampMoney("1500.000000", null, null)).toBe("1500.000000");
   });
 });

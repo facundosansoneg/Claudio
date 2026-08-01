@@ -67,3 +67,15 @@ export function applyPercentage(amount: string, percentage: string): string {
   const result = (amountInt * percentageInt) / denominator;
   return formatFixedPoint(result, MONEY_SCALE);
 }
+
+/**
+ * Ajusta `amount` a los límites [min, max] cuando corresponda (spec,
+ * COMM-001: "importe mínimo"/"importe máximo" de un concepto de
+ * comisión). Un límite en null se ignora.
+ */
+export function clampMoney(amount: string, min: string | null, max: string | null): string {
+  let result = amount;
+  if (min !== null && compareMoney(result, min) < 0) result = min;
+  if (max !== null && compareMoney(result, max) > 0) result = max;
+  return result;
+}
