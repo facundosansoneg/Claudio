@@ -12,7 +12,8 @@
     "test": "pnpm -r --workspace-concurrency=1 --if-present run test",
     "build": "pnpm -r --if-present run build",
     "db:generate": "pnpm --filter @farfalla/database run generate",
-    "db:migrate": "pnpm --filter @farfalla/database run migrate"
+    "db:migrate": "pnpm --filter @farfalla/database run migrate",
+    "db:seed:dev": "pnpm --filter @farfalla/auth run seed:dev"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

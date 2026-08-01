@@ -3,6 +3,7 @@ import { signIn, signOut } from "@/auth";
 
 export default async function DashboardPage() {
   const context = await getCurrentUserContext();
+  const devLoginEnabled = process.env.AUTH_ENABLE_DEV_LOGIN === "true";
 
   if (!context) {
     return (
@@ -17,6 +18,22 @@ export default async function DashboardPage() {
         >
           <button type="submit">Iniciar sesión con Microsoft Entra ID</button>
         </form>
+        {devLoginEnabled && (
+          <form
+            action={async () => {
+              "use server";
+              await signIn("dev-login");
+            }}
+          >
+            <button type="submit">Login de prueba (sin Azure)</button>
+            <p>
+              <small>
+                Solo visible porque AUTH_ENABLE_DEV_LOGIN=true. Nunca activar esta variable en
+                un entorno accesible públicamente.
+              </small>
+            </p>
+          </form>
+        )}
       </main>
     );
   }
