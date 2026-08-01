@@ -50,6 +50,20 @@
       "when": 1785618074742,
       "tag": "0006_enable_rls_owners_properties",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785618892890,
+      "tag": "0007_add_leases_charges_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785618907523,
+      "tag": "0008_enable_rls_leases_charges_ledger",
+      "breakpoints": true
     }
   ]
 }

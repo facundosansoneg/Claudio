@@ -35,3 +35,17 @@ export function formatFixedPoint(value: bigint, scale: number): string {
 export function sumFixedPoint(values: bigint[]): bigint {
   return values.reduce((acc, v) => acc + v, 0n);
 }
+
+export const MONEY_SCALE = 6; // NUMERIC(20,6), CLAUDE.md regla 2
+
+export function subtractMoney(a: string, b: string): string {
+  const result = parseFixedPoint(a, MONEY_SCALE) - parseFixedPoint(b, MONEY_SCALE);
+  return formatFixedPoint(result, MONEY_SCALE);
+}
+
+export function compareMoney(a: string, b: string): -1 | 0 | 1 {
+  const diff = parseFixedPoint(a, MONEY_SCALE) - parseFixedPoint(b, MONEY_SCALE);
+  if (diff < 0n) return -1;
+  if (diff > 0n) return 1;
+  return 0;
+}

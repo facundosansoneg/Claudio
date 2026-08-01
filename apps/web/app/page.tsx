@@ -63,6 +63,15 @@ export default async function DashboardPage() {
         <li>
           <Link href="/properties">Propiedades</Link>
         </li>
+        <li>
+          <Link href="/tenants">Inquilinos</Link>
+        </li>
+        <li>
+          <Link href="/leases">Contratos</Link>
+        </li>
+        <li>
+          <Link href="/charges">Cargos</Link>
+        </li>
       </ul>
       <form
         action={async () => {

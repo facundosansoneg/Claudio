@@ -11,6 +11,13 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "owner", action: "create", description: "Alta de propietario" },
   { resource: "property", action: "view", description: "Ver propiedades" },
   { resource: "property", action: "create", description: "Alta de propiedad" },
+  { resource: "tenant", action: "view", description: "Ver inquilinos" },
+  { resource: "tenant", action: "create", description: "Alta de inquilino" },
+  { resource: "lease", action: "view", description: "Ver contratos" },
+  { resource: "lease", action: "create", description: "Alta de contrato" },
+  { resource: "charge", action: "view", description: "Ver cargos" },
+  { resource: "charge", action: "create", description: "Generar cargos" },
+  { resource: "payment", action: "create", description: "Registrar cobros" },
 ] as const;
 
 export async function seedPermissions(db: Database) {
