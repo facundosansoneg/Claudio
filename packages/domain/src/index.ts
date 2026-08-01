@@ -7,4 +7,5 @@ export * from "./accounting/reverse-receipt";
 export * from "./accounting/reprint-receipt";
 export * from "./accounting/distribute-charge-to-owners";
 export * from "./accounting/owner-statement";
+export * from "./accounting/expiring-tax-exemptions";
 export * from "./seed/seed-demo-dataset";

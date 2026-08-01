@@ -7,6 +7,7 @@ import {
   withOrganizationContext,
   recordAuditEvent,
   ownershipInterests,
+  taxExemptions,
   type Database,
 } from "@farfalla/database";
 import { validateOwnershipInterests, type OwnershipInterestRecord } from "@farfalla/domain";
@@ -92,6 +93,53 @@ export async function createOwnershipInterestAction(formData: FormData) {
       entityId: inserted.id,
       action: "create",
       newState: candidate,
+    });
+  });
+
+  revalidatePath(`/properties/${propertyId}`);
+  redirect(`/properties/${propertyId}`);
+}
+
+export async function createTaxExemptionAction(formData: FormData) {
+  const context = await getCurrentUserContext();
+  if (!context) throw new Error("No autenticado");
+
+  const allowed = await hasPermission(context, "tax_exemption", "create");
+  if (!allowed) throw new Error("No autorizado");
+
+  const propertyId = String(formData.get("propertyId") ?? "").trim();
+  const taxType = String(formData.get("taxType") ?? "irpf");
+  const reason = String(formData.get("reason") ?? "").trim();
+  const documentReference = String(formData.get("documentReference") ?? "").trim() || null;
+  const validFrom = String(formData.get("validFrom") ?? "").trim();
+  const validToInput = String(formData.get("validTo") ?? "").trim();
+  const validTo = validToInput || null;
+
+  if (!propertyId || !reason || !validFrom) throw new Error("Faltan campos obligatorios");
+
+  await withOrganizationContext(getDb(), context.organizationId, async (tx) => {
+    const [exemption] = await tx
+      .insert(taxExemptions)
+      .values({
+        organizationId: context.organizationId,
+        propertyId,
+        taxType,
+        reason,
+        documentReference,
+        validFrom,
+        validTo,
+        createdBy: context.userId,
+      })
+      .returning({ id: taxExemptions.id });
+    if (!exemption) throw new Error("No se pudo crear la exoneración");
+
+    await recordAuditEvent(tx, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      entityType: "tax_exemptions",
+      entityId: exemption.id,
+      action: "create",
+      newState: { propertyId, taxType, reason, documentReference, validFrom, validTo },
     });
   });
 

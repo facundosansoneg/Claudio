@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { withOrganizationContext, properties, ownershipInterests, owners, parties } from "@farfalla/database";
+import { withOrganizationContext, properties, ownershipInterests, owners, parties, taxExemptions } from "@farfalla/database";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
-import { createOwnershipInterestAction } from "./actions";
+import { createOwnershipInterestAction, createTaxExemptionAction } from "./actions";
 
 export default async function PropertyDetailPage({
   params,
@@ -26,9 +26,11 @@ export default async function PropertyDetailPage({
     );
   }
 
-  const [canView, canCreate] = await Promise.all([
+  const [canView, canCreate, canViewExemptions, canCreateExemptions] = await Promise.all([
     hasPermission(context, "ownership_interest", "view"),
     hasPermission(context, "ownership_interest", "create"),
+    hasPermission(context, "tax_exemption", "view"),
+    hasPermission(context, "tax_exemption", "create"),
   ]);
 
   if (!canView) {
@@ -65,7 +67,9 @@ export default async function PropertyDetailPage({
       .from(owners)
       .innerJoin(parties, eq(parties.id, owners.partyId));
 
-    return { property, interests, ownersList };
+    const exemptions = await tx.select().from(taxExemptions).where(eq(taxExemptions.propertyId, id));
+
+    return { property, interests, ownersList, exemptions };
   });
 
   if (!data) {
@@ -78,7 +82,19 @@ export default async function PropertyDetailPage({
     );
   }
 
-  const { property, interests, ownersList } = data;
+  const { property, interests, ownersList, exemptions } = data;
+
+  // TAX-004: aviso visual de vencimiento próximo. El umbral en días
+  // todavía no está en `parameters` (pendiente de Hito 6, cuando se
+  // sume la automatización de avisos por correo); acá es un default
+  // fijo documentado, no una tasa fiscal ni un importe.
+  const TAX_EXEMPTION_ALERT_DAYS = 30;
+  const today = new Date();
+  const isExpiringSoon = (validTo: string | null) => {
+    if (!validTo) return false;
+    const daysLeft = Math.round((new Date(`${validTo}T00:00:00Z`).getTime() - today.getTime()) / 86400000);
+    return daysLeft >= 0 && daysLeft <= TAX_EXEMPTION_ALERT_DAYS;
+  };
 
   return (
     <main>
@@ -205,6 +221,81 @@ export default async function PropertyDetailPage({
                   misma fecha — se valida al guardar.
                 </small>
               </p>
+            </form>
+          )}
+        </>
+      )}
+
+      {canViewExemptions && (
+        <>
+          <h2>Exoneraciones fiscales</h2>
+          {exemptions.length === 0 ? (
+            <p>Esta propiedad no tiene exoneraciones registradas — se retiene según el perfil fiscal de cada propietario.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Impuesto</th>
+                  <th>Motivo</th>
+                  <th>Respaldo</th>
+                  <th>Vigencia</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {exemptions.map((exemption) => (
+                  <tr key={exemption.id}>
+                    <td>{exemption.taxType.toUpperCase()}</td>
+                    <td>{exemption.reason}</td>
+                    <td>{exemption.documentReference ?? "—"}</td>
+                    <td>
+                      {exemption.validFrom} — {exemption.validTo ?? "vigente"}
+                      {isExpiringSoon(exemption.validTo) && (
+                        <>
+                          {" "}
+                          <strong>⚠ vence en {TAX_EXEMPTION_ALERT_DAYS} días o menos</strong>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {canCreateExemptions && (
+            <form action={createTaxExemptionAction}>
+              <input type="hidden" name="propertyId" value={property.id} />
+              <div>
+                <label>
+                  Impuesto{" "}
+                  <select name="taxType" defaultValue="irpf">
+                    <option value="irpf">IRPF</option>
+                    <option value="irnr">IRNR</option>
+                  </select>
+                </label>
+              </div>
+              <div>
+                <label>
+                  Motivo <input name="reason" required />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Respaldo documental <input name="documentReference" placeholder="Resolución, expediente..." />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Vigente desde <input type="date" name="validFrom" required />
+                </label>
+              </div>
+              <div>
+                <label>
+                  Vigente hasta (opcional) <input type="date" name="validTo" />
+                </label>
+              </div>
+              <button type="submit">Registrar exoneración</button>
             </form>
           )}
         </>

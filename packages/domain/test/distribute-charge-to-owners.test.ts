@@ -16,6 +16,7 @@ import {
   leases,
   leaseParties,
   taxProfiles,
+  taxExemptions,
   type Database,
 } from "@farfalla/database";
 import { seedChartOfAccounts } from "../src/accounting/chart-of-accounts";
@@ -119,7 +120,14 @@ async function setupSharedPropertyWithPaidCharge() {
       role: "tenant",
     });
 
-    return { organizationId, ownerAId: ownerA!.id, ownerBId: ownerB!.id, leaseId: lease!.id, userId: user!.id };
+    return {
+      organizationId,
+      ownerAId: ownerA!.id,
+      ownerBId: ownerB!.id,
+      propertyId: property!.id,
+      leaseId: lease!.id,
+      userId: user!.id,
+    };
   });
 }
 
@@ -130,7 +138,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.execute(
-    sql`TRUNCATE TABLE receipts, payment_allocations, payments, journal_lines, journal_entries, charges, lease_parties, leases, tenants, tax_profiles, ownership_interests, units, properties, owners, parties, ledger_accounts, users, organizations RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE receipts, payment_allocations, payments, journal_lines, journal_entries, charges, lease_parties, leases, tenants, tax_profiles, tax_exemptions, ownership_interests, units, properties, owners, parties, ledger_accounts, users, organizations RESTART IDENTITY CASCADE`,
   );
 });
 
@@ -212,6 +220,52 @@ describe("distributeChargeToOwners — TAX-003 (aporte fiscal distinto del econ�
     await expect(
       distributeChargeToOwners(db, { organizationId, chargeId: charge.chargeId, triggeredBy: userId }),
     ).rejects.toThrow();
+  });
+
+  it("TAX-002: no retiene si la propiedad tiene una exoneración vigente para el mismo impuesto", async () => {
+    const { organizationId, ownerAId, propertyId, leaseId, userId } = await setupSharedPropertyWithPaidCharge();
+    await withOrganizationContext(db, organizationId, async (tx) => {
+      await seedChartOfAccounts(tx, organizationId);
+      await tx.insert(taxExemptions).values({
+        organizationId,
+        propertyId,
+        taxType: "irpf",
+        reason: "Exoneración por vivienda de interés social",
+        documentReference: "Resolución DGI 123/2026",
+        validFrom: "2026-01-01",
+      });
+    });
+
+    const charge = await generateCharge(db, {
+      organizationId,
+      leaseId,
+      chargeType: "rent",
+      period: "2026-11",
+      dueDate: "2026-11-01",
+      amount: "30000.000000",
+      triggeredBy: userId,
+    });
+    await registerPaymentAndIssueReceipt(db, {
+      organizationId,
+      chargeId: charge.chargeId,
+      paymentDate: "2026-11-05",
+      amount: "30000.000000",
+      triggeredBy: userId,
+    });
+
+    const { distributions } = await distributeChargeToOwners(db, {
+      organizationId,
+      chargeId: charge.chargeId,
+      triggeredBy: userId,
+    });
+
+    const ownerA = distributions.find((d) => d.ownerId === ownerAId);
+    // Sin la exoneración retendría 3150 (10.5% de 30000) — con la
+    // exoneración vigente, la retención es cero aunque el propietario
+    // sí tenga tax_profile activo.
+    expect(ownerA?.taxExempt).toBe(true);
+    expect(ownerA?.taxWithholding).toBe("0.000000");
+    expect(ownerA?.netToOwner).toBe("16200.000000"); // 18000 - 1800 comisión - 0 retención
   });
 
   it("no permite liquidar un cargo que no está completamente pagado", async () => {

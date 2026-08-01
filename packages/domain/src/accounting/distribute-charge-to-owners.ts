@@ -5,6 +5,7 @@ import {
   units,
   ownershipInterests,
   taxProfiles,
+  taxExemptions,
   journalEntries,
   journalLines,
   ledgerAccounts,
@@ -26,6 +27,7 @@ export interface OwnerDistribution {
   grossShare: string;
   commission: string;
   taxWithholding: string;
+  taxExempt: boolean;
   netToOwner: string;
 }
 
@@ -66,7 +68,11 @@ function isActiveAt<T extends { validFrom: string; validTo: string | null }>(
  * participación económica) multiplicado por la tasa vigente del
  * propietario en `tax_profiles`. Si un propietario no tiene tax_profile
  * vigente, no se retiene nada — nunca se asume una tasa (CLAUDE.md
- * regla 6/13).
+ * regla 6/13). Si la propiedad tiene una exoneración vigente
+ * (`tax_exemptions`, TAX-002) para el mismo tipo de impuesto a la
+ * fecha del cargo, tampoco se retiene — la exoneración es de la
+ * vivienda, no del propietario, y puede convivir con propiedades
+ * gravadas del mismo propietario sin duplicarlo.
  */
 export async function distributeChargeToOwners(
   db: Database,
@@ -98,6 +104,10 @@ export async function distributeChargeToOwners(
     }
 
     const allTaxProfiles = await tx.select().from(taxProfiles);
+    const allExemptions = await tx
+      .select()
+      .from(taxExemptions)
+      .where(eq(taxExemptions.propertyId, unit.propertyId));
 
     const distributions: OwnerDistribution[] = activeInterests.map((interest) => {
       const grossShare = applyPercentage(charge.originalAmount, interest.rentDistributionPercentage);
@@ -108,12 +118,16 @@ export async function distributeChargeToOwners(
       const activeTaxProfile = allTaxProfiles.find(
         (profile) => profile.ownerId === interest.ownerId && isActiveAt(profile, charge.dueDate),
       );
-      const taxWithholding = activeTaxProfile
-        ? applyPercentage(taxBase, activeTaxProfile.percentage)
-        : "0.000000";
+      const taxExempt = activeTaxProfile
+        ? allExemptions.some(
+            (exemption) => exemption.taxType === activeTaxProfile.taxType && isActiveAt(exemption, charge.dueDate),
+          )
+        : false;
+      const taxWithholding =
+        activeTaxProfile && !taxExempt ? applyPercentage(taxBase, activeTaxProfile.percentage) : "0.000000";
       const netToOwner = subtractMoney(subtractMoney(grossShare, commission), taxWithholding);
 
-      return { ownerId: interest.ownerId, grossShare, commission, taxWithholding, netToOwner };
+      return { ownerId: interest.ownerId, grossShare, commission, taxWithholding, taxExempt, netToOwner };
     });
 
     const receivableFundsAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.OWNER_FUNDS_PAYABLE);

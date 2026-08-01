@@ -30,6 +30,8 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "tax_profile", action: "view", description: "Ver perfiles fiscales" },
   { resource: "tax_profile", action: "create", description: "Asignar perfil fiscal" },
   { resource: "owner_statement", action: "view", description: "Ver estado de cuenta de propietario" },
+  { resource: "tax_exemption", action: "view", description: "Ver exoneraciones fiscales" },
+  { resource: "tax_exemption", action: "create", description: "Asignar exoneración fiscal" },
 ] as const;
 
 export async function seedPermissions(db: Database) {
