@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   applyPercentage,
   clampMoney,
+  computeCountRatioPercentage,
   computeRatioPercentage,
+  divideMoney,
   formatFixedPoint,
+  multiplyMoney,
   parseFixedPoint,
   sumFixedPoint,
 } from "../src/decimal";
@@ -45,5 +48,18 @@ describe("decimal (aritmética de punto fijo con BigInt)", () => {
     expect(clampMoney("5000.000000", null, "2000.000000")).toBe("2000.000000"); // baja al máximo
     expect(clampMoney("1500.000000", "1000.000000", "2000.000000")).toBe("1500.000000"); // dentro del rango
     expect(clampMoney("1500.000000", null, null)).toBe("1500.000000");
+  });
+
+  it("multiplyMoney y divideMoney son exactos e inversos", () => {
+    expect(multiplyMoney("1500.000000", "100.000000")).toBe("150000.000000");
+    expect(divideMoney("150000.000000", "100.000000")).toBe("1500.000000");
+    expect(() => divideMoney("100.000000", "0.000000")).toThrow(/dividir por cero/);
+  });
+
+  it("computeCountRatioPercentage calcula un porcentaje exacto entre dos conteos", () => {
+    expect(computeCountRatioPercentage(1, 3)).toBe("33.33333333");
+    expect(computeCountRatioPercentage(1, 1)).toBe("100.00000000");
+    expect(computeCountRatioPercentage(0, 5)).toBe("0.00000000");
+    expect(() => computeCountRatioPercentage(1, 0)).toThrow(/denominador cero/);
   });
 });

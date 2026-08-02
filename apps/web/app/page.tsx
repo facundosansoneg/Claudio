@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { getPortfolioVacancy, getPortfolioDelinquency } from "@farfalla/domain";
+import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
+import { hasPermission } from "@/lib/require-permission";
 import { signIn, signOut } from "@/auth";
 
 export default async function DashboardPage() {
@@ -39,6 +42,15 @@ export default async function DashboardPage() {
     );
   }
 
+  const canViewDashboard = await hasPermission(context, "portfolio_dashboard", "view");
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [vacancy, delinquency] = canViewDashboard
+    ? await Promise.all([
+        getPortfolioVacancy(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+        getPortfolioDelinquency(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+      ])
+    : [null, null];
+
   return (
     <main>
       <h1>Farfalla Asset &amp; Property Management</h1>
@@ -46,6 +58,84 @@ export default async function DashboardPage() {
         Sesión iniciada como <strong>{context.displayName}</strong> ({context.email})
       </p>
       <p>Organización: {context.organizationId}</p>
+
+      {canViewDashboard && vacancy && delinquency && (
+        <>
+          <h2>Dashboard de cartera</h2>
+          <p>
+            <small>
+              Vacancia física/económica y morosidad (spec, sección 9.1) a la fecha de hoy (
+              {todayIso}). El resto del dashboard (cash-on-cash, retorno total, XIRR) requiere
+              modelar capital invertido acumulado y deuda — todavía no implementado.
+            </small>
+          </p>
+          <p>
+            <strong>Vacancia física:</strong>{" "}
+            {vacancy.physicalVacancyPercentage !== null
+              ? `${vacancy.physicalVacancyPercentage}% (${vacancy.vacantUnits} de ${vacancy.totalUnits} unidades)`
+              : "sin unidades cargadas"}
+          </p>
+          {vacancy.unitsExcludedForMissingRent > 0 && (
+            <p>
+              <small>
+                {vacancy.unitsExcludedForMissingRent} unidad(es) vacante(s) sin renta objetivo
+                cargada — excluidas de la vacancia económica en vez de asumir $0.
+              </small>
+            </p>
+          )}
+          {vacancy.byCurrency.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th>Moneda</th>
+                  <th>Ingreso bruto potencial</th>
+                  <th>Renta contratada</th>
+                  <th>Vacancia económica</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vacancy.byCurrency.map((entry) => (
+                  <tr key={entry.currency}>
+                    <td>{entry.currency}</td>
+                    <td>{entry.potentialGrossRent}</td>
+                    <td>{entry.contractedRent}</td>
+                    <td>{entry.economicVacancyPercentage}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <p>
+            <strong>Morosidad</strong>
+          </p>
+          {delinquency.byCurrency.length === 0 ? (
+            <p>Sin cargos vencidos hasta la fecha.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Moneda</th>
+                  <th>Facturado (vencido)</th>
+                  <th>Saldo vencido</th>
+                  <th>Morosidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {delinquency.byCurrency.map((entry) => (
+                  <tr key={entry.currency}>
+                    <td>{entry.currency}</td>
+                    <td>{entry.billed}</td>
+                    <td>{entry.overdueBalance}</td>
+                    <td>{entry.delinquencyPercentage}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+
       <h2>Roles y alcances</h2>
       <ul>
         {context.roles.map((role, index) => (

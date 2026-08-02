@@ -51,6 +51,7 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "market_comparable", action: "create", description: "Cargar comparable de mercado" },
   { resource: "market_estimate", action: "view", description: "Ver estimaciones automáticas" },
   { resource: "market_estimate", action: "create", description: "Generar estimación automática" },
+  { resource: "portfolio_dashboard", action: "view", description: "Ver dashboard de cartera (vacancia, morosidad)" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

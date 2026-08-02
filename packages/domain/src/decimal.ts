@@ -111,6 +111,21 @@ export function multiplyMoney(a: string, b: string): string {
 }
 
 /**
+ * Ratio entre dos conteos enteros (ej. unidades vacantes / unidades
+ * totales, spec 9.1 "vacancia física"), expresado como porcentaje
+ * NUMERIC(12,8). No usa `float` aunque los operandos sean conteos, por
+ * la misma regla que el resto de este módulo (CLAUDE.md regla 2).
+ */
+export function computeCountRatioPercentage(numerator: number, denominator: number): string {
+  if (denominator === 0) {
+    throw new Error("No se puede calcular un ratio con denominador cero");
+  }
+  const scale = 10n ** BigInt(PERCENTAGE_SCALE);
+  const result = (BigInt(numerator) * scale * 100n) / BigInt(denominator);
+  return formatFixedPoint(result, PERCENTAGE_SCALE);
+}
+
+/**
  * Divide dos valores NUMERIC(20,6) exactos — ej. precio / superficie =
  * precio por m² (spec, sección 10.2). Trunca hacia cero.
  */
