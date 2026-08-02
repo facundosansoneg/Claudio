@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { getPortfolioVacancy, getPortfolioDelinquency, getYieldByDimension, type DimensionYield } from "@farfalla/domain";
+import {
+  getPortfolioVacancy,
+  getPortfolioDelinquency,
+  getYieldByDimension,
+  getBelowMarketLeases,
+  type DimensionYield,
+} from "@farfalla/domain";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
@@ -44,13 +50,14 @@ export default async function DashboardPage() {
 
   const canViewDashboard = await hasPermission(context, "portfolio_dashboard", "view");
   const todayIso = new Date().toISOString().slice(0, 10);
-  const [vacancy, delinquency, yieldByDimension] = canViewDashboard
+  const [vacancy, delinquency, yieldByDimension, belowMarketLeases] = canViewDashboard
     ? await Promise.all([
         getPortfolioVacancy(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
         getPortfolioDelinquency(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
         getYieldByDimension(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+        getBelowMarketLeases(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
       ])
-    : [null, null, null];
+    : [null, null, null, null];
 
   return (
     <main>
@@ -148,6 +155,53 @@ export default async function DashboardPage() {
               <DimensionYieldTable title="Por barrio" rows={yieldByDimension.byNeighborhood} />
               <DimensionYieldTable title="Por propietario (prorrateado por participación económica)" rows={yieldByDimension.byOwner} />
               <DimensionYieldTable title="Por familia" rows={yieldByDimension.byFamily} />
+            </>
+          )}
+
+          {belowMarketLeases && (
+            <>
+              <h3>Contratos con alquiler inferior al mercado</h3>
+              <p>
+                <small>
+                  Compara la renta contractual contra la última estimación de mercado de la
+                  propiedad (sección 10.3) o, si no hay, contra la renta objetivo de la unidad —
+                  solo cuando están en la misma moneda que el contrato.
+                </small>
+              </p>
+              {belowMarketLeases.length === 0 ? (
+                <p>Ningún contrato activo está por debajo del benchmark de mercado disponible.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Propiedad</th>
+                      <th>Unidad</th>
+                      <th>Contrato</th>
+                      <th>Renta contractual</th>
+                      <th>Benchmark</th>
+                      <th>Fuente</th>
+                      <th>Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {belowMarketLeases.map((lease) => (
+                      <tr key={lease.leaseId}>
+                        <td>{lease.propertyName}</td>
+                        <td>{lease.unitCode}</td>
+                        <td>{lease.leaseNumber}</td>
+                        <td>
+                          {lease.contractualRent} {lease.currency}
+                        </td>
+                        <td>
+                          {lease.benchmarkRent} {lease.currency}
+                        </td>
+                        <td>{lease.benchmarkSource === "market_estimate" ? "Estimación de mercado" : "Renta objetivo"}</td>
+                        <td>-{lease.gapPercentage}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </>
           )}
         </>

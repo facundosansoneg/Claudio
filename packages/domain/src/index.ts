@@ -21,4 +21,5 @@ export * from "./patrimonial/estimate-market-value";
 export * from "./patrimonial/get-portfolio-vacancy";
 export * from "./patrimonial/get-portfolio-delinquency";
 export * from "./patrimonial/get-yield-by-dimension";
+export * from "./patrimonial/get-below-market-leases";
 export * from "./seed/seed-demo-dataset";
