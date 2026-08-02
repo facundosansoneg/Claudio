@@ -6,6 +6,12 @@ import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
 import { uploadOwnerImportBatchAction, commitOwnerImportBatchAction } from "./actions";
 
+function batchStatusBadgeClass(status: string): string {
+  if (status === "committed") return "badge--success";
+  if (status === "failed") return "badge--danger";
+  return "badge--warning";
+}
+
 export default async function OwnerImportPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   const context = await getCurrentUserContext();
@@ -69,9 +75,13 @@ export default async function OwnerImportPage({ searchParams }: { searchParams: 
           hasta confirmar el lote, y solo se importan las filas válidas.
         </small>
       </p>
-      <p>
-        <strong>Control de migración (sección 16.3):</strong> {totalOwners} propietario(s) en total en esta organización.
-      </p>
+      <div className="stat-grid">
+        <div className="stat stat--accent">
+          <div className="stat-label">Control de migración (16.3)</div>
+          <div className="stat-value">{totalOwners}</div>
+          <div className="stat-sub">propietario(s) en total en esta organización</div>
+        </div>
+      </div>
 
       {error && (
         <p>
@@ -119,7 +129,9 @@ export default async function OwnerImportPage({ searchParams }: { searchParams: 
                 <td>{batch.validRowCount}</td>
                 <td>{batch.invalidRowCount}</td>
                 <td>{batch.importedRowCount}</td>
-                <td>{batch.status}</td>
+                <td>
+                  <span className={`badge ${batchStatusBadgeClass(batch.status)}`}>{batch.status}</span>
+                </td>
                 {canCommit && (
                   <td>
                     {batch.status === "validated" && batch.validRowCount > 0 && (

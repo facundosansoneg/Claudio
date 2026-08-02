@@ -14,14 +14,39 @@ import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
 import { signIn, signOut } from "@/auth";
 
+function statTone(percentage: string | null): string {
+  if (percentage === null) return "";
+  const value = Number(percentage);
+  if (value >= 20) return "stat--danger";
+  if (value >= 10) return "stat--warning";
+  return "stat--success";
+}
+
+function barFillClass(percentage: string): string {
+  const value = Number(percentage);
+  if (value >= 20) return "bar-fill--danger";
+  if (value >= 10) return "bar-fill--warning";
+  return "bar-fill--success";
+}
+
+// Solo formateo de presentación (redondeo a 2 decimales) — el valor exacto
+// almacenado y usado en los cálculos sigue siendo el NUMERIC/string original.
+function fmtPct(percentage: string): string {
+  return `${Number(percentage).toFixed(2)}%`;
+}
+
+function fmtMoney(amount: string): string {
+  return Number(amount).toLocaleString("es-UY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default async function DashboardPage() {
   const context = await getCurrentUserContext();
   const devLoginEnabled = process.env.AUTH_ENABLE_DEV_LOGIN === "true";
 
   if (!context) {
     return (
-      <main>
-        <h1>Farfalla Asset &amp; Property Management</h1>
+      <main className="auth-screen">
+        <h1>Iniciar sesión</h1>
         <p>No hay sesión activa.</p>
         <form
           action={async () => {
@@ -76,14 +101,18 @@ export default async function DashboardPage() {
 
   return (
     <main>
-      <h1>Farfalla Asset &amp; Property Management</h1>
-      <p>
-        Sesión iniciada como <strong>{context.displayName}</strong> ({context.email})
-      </p>
-      <p>Organización: {context.organizationId}</p>
+      <h1>Panel general</h1>
+      <div className="card">
+        <p>
+          Sesión iniciada como <strong>{context.displayName}</strong> ({context.email})
+        </p>
+        <p>
+          <small>Organización: {context.organizationId}</small>
+        </p>
+      </div>
 
       {canViewDashboard && expiringTaxExemptions && expiringLeases && overdueTasks && (
-        <>
+        <div className="card">
           <h2>Centro de alertas</h2>
           <p>
             <small>
@@ -96,24 +125,27 @@ export default async function DashboardPage() {
             </small>
           </p>
           {expiringTaxExemptions.length === 0 && expiringLeases.length === 0 && overdueTasks.length === 0 ? (
-            <p>Sin alertas activas.</p>
+            <p>
+              <span className="badge badge--success">Sin alertas activas</span>
+            </p>
           ) : (
-            <ul>
+            <ul className="alert-list">
               {expiringTaxExemptions.map((exemption) => (
-                <li key={exemption.id}>
-                  Exoneración de {exemption.taxType.toUpperCase()} de {exemption.propertyName} vence en{" "}
-                  {exemption.daysUntilExpiration} días ({exemption.validTo})
+                <li key={exemption.id} className="alert--warning">
+                  <span className="badge badge--warning">Exoneración</span> {exemption.taxType.toUpperCase()} de{" "}
+                  {exemption.propertyName} vence en {exemption.daysUntilExpiration} días ({exemption.validTo})
                 </li>
               ))}
               {expiringLeases.map((lease) => (
-                <li key={lease.leaseId}>
-                  Contrato {lease.leaseNumber} de {lease.propertyName} ({lease.unitCode}) vence en{" "}
-                  {lease.daysUntilExpiration} días ({lease.endDate})
+                <li key={lease.leaseId} className="alert--warning">
+                  <span className="badge badge--warning">Contrato</span> {lease.leaseNumber} de {lease.propertyName} (
+                  {lease.unitCode}) vence en {lease.daysUntilExpiration} días ({lease.endDate})
                 </li>
               ))}
               {overdueTasks.map((task) => (
-                <li key={task.taskId}>
-                  Tarea "{task.title}" vencida hace {task.daysOverdue} días (prioridad {task.priority})
+                <li key={task.taskId} className="alert--danger">
+                  <span className="badge badge--danger">Tarea vencida</span> "{task.title}" vencida hace{" "}
+                  {task.daysOverdue} días (prioridad {task.priority})
                 </li>
               ))}
             </ul>
@@ -124,11 +156,11 @@ export default async function DashboardPage() {
               con alquiler inferior al mercado", ambos en el dashboard de cartera debajo.
             </small>
           </p>
-        </>
+        </div>
       )}
 
       {canViewDashboard && vacancy && delinquency && (
-        <>
+        <div className="card">
           <h2>Dashboard de cartera</h2>
           <p>
             <small>
@@ -137,12 +169,20 @@ export default async function DashboardPage() {
               modelar capital invertido acumulado y deuda — todavía no implementado.
             </small>
           </p>
-          <p>
-            <strong>Vacancia física:</strong>{" "}
-            {vacancy.physicalVacancyPercentage !== null
-              ? `${vacancy.physicalVacancyPercentage}% (${vacancy.vacantUnits} de ${vacancy.totalUnits} unidades)`
-              : "sin unidades cargadas"}
-          </p>
+
+          <div className="stat-grid">
+            <div className={`stat ${statTone(vacancy.physicalVacancyPercentage)}`}>
+              <div className="stat-label">Vacancia física</div>
+              <div className="stat-value">
+                {vacancy.physicalVacancyPercentage !== null ? fmtPct(vacancy.physicalVacancyPercentage) : "—"}
+              </div>
+              <div className="stat-sub">
+                {vacancy.physicalVacancyPercentage !== null
+                  ? `${vacancy.vacantUnits} de ${vacancy.totalUnits} unidades`
+                  : "sin unidades cargadas"}
+              </div>
+            </div>
+          </div>
           {vacancy.unitsExcludedForMissingRent > 0 && (
             <p>
               <small>
@@ -152,54 +192,83 @@ export default async function DashboardPage() {
             </p>
           )}
           {vacancy.byCurrency.length > 0 && (
-            <table>
-              <thead>
-                <tr>
-                  <th>Moneda</th>
-                  <th>Ingreso bruto potencial</th>
-                  <th>Renta contratada</th>
-                  <th>Vacancia económica</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vacancy.byCurrency.map((entry) => (
-                  <tr key={entry.currency}>
-                    <td>{entry.currency}</td>
-                    <td>{entry.potentialGrossRent}</td>
-                    <td>{entry.contractedRent}</td>
-                    <td>{entry.economicVacancyPercentage}%</td>
+            <>
+              <h3>Vacancia económica por moneda</h3>
+              {vacancy.byCurrency.map((entry) => (
+                <div className="bar-row" key={entry.currency}>
+                  <span className="bar-row__label">{entry.currency}</span>
+                  <span className="bar-track">
+                    <span
+                      className={`bar-fill ${barFillClass(entry.economicVacancyPercentage)}`}
+                      style={{ width: `${Math.min(100, Number(entry.economicVacancyPercentage))}%` }}
+                    />
+                  </span>
+                  <span className="bar-row__value">{fmtPct(entry.economicVacancyPercentage)}</span>
+                </div>
+              ))}
+              <table>
+                <thead>
+                  <tr>
+                    <th>Moneda</th>
+                    <th>Ingreso bruto potencial</th>
+                    <th>Renta contratada</th>
+                    <th>Vacancia económica</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {vacancy.byCurrency.map((entry) => (
+                    <tr key={entry.currency}>
+                      <td>{entry.currency}</td>
+                      <td>{fmtMoney(entry.potentialGrossRent)}</td>
+                      <td>{fmtMoney(entry.contractedRent)}</td>
+                      <td>{fmtPct(entry.economicVacancyPercentage)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
 
-          <p>
-            <strong>Morosidad</strong>
-          </p>
+          <h3>Morosidad</h3>
           {delinquency.byCurrency.length === 0 ? (
-            <p>Sin cargos vencidos hasta la fecha.</p>
+            <p>
+              <span className="badge badge--success">Sin cargos vencidos hasta la fecha</span>
+            </p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Moneda</th>
-                  <th>Facturado (vencido)</th>
-                  <th>Saldo vencido</th>
-                  <th>Morosidad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {delinquency.byCurrency.map((entry) => (
-                  <tr key={entry.currency}>
-                    <td>{entry.currency}</td>
-                    <td>{entry.billed}</td>
-                    <td>{entry.overdueBalance}</td>
-                    <td>{entry.delinquencyPercentage}%</td>
+            <>
+              {delinquency.byCurrency.map((entry) => (
+                <div className="bar-row" key={entry.currency}>
+                  <span className="bar-row__label">{entry.currency}</span>
+                  <span className="bar-track">
+                    <span
+                      className={`bar-fill ${barFillClass(entry.delinquencyPercentage)}`}
+                      style={{ width: `${Math.min(100, Number(entry.delinquencyPercentage))}%` }}
+                    />
+                  </span>
+                  <span className="bar-row__value">{fmtPct(entry.delinquencyPercentage)}</span>
+                </div>
+              ))}
+              <table>
+                <thead>
+                  <tr>
+                    <th>Moneda</th>
+                    <th>Facturado (vencido)</th>
+                    <th>Saldo vencido</th>
+                    <th>Morosidad</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {delinquency.byCurrency.map((entry) => (
+                    <tr key={entry.currency}>
+                      <td>{entry.currency}</td>
+                      <td>{fmtMoney(entry.billed)}</td>
+                      <td>{fmtMoney(entry.overdueBalance)}</td>
+                      <td>{fmtPct(entry.delinquencyPercentage)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
 
           {yieldByDimension && (
@@ -250,13 +319,13 @@ export default async function DashboardPage() {
                         <td>{lease.unitCode}</td>
                         <td>{lease.leaseNumber}</td>
                         <td>
-                          {lease.contractualRent} {lease.currency}
+                          {fmtMoney(lease.contractualRent)} {lease.currency}
                         </td>
                         <td>
-                          {lease.benchmarkRent} {lease.currency}
+                          {fmtMoney(lease.benchmarkRent)} {lease.currency}
                         </td>
                         <td>{lease.benchmarkSource === "market_estimate" ? "Estimación de mercado" : "Renta objetivo"}</td>
-                        <td>-{lease.gapPercentage}%</td>
+                        <td>-{fmtPct(lease.gapPercentage)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -264,13 +333,13 @@ export default async function DashboardPage() {
               )}
             </>
           )}
-        </>
+        </div>
       )}
 
       <h2>Roles y alcances</h2>
-      <ul>
+      <ul className="alert-list">
         {context.roles.map((role, index) => (
-          <li key={index}>
+          <li key={index} className="alert--neutral">
             {role.roleName} — alcance: {role.scopeType}
             {role.scopeId ? ` (${role.scopeId})` : ""}
           </li>
@@ -361,9 +430,9 @@ function DimensionYieldTable({ title, rows }: { title: string; rows: DimensionYi
             <tr key={`${row.key}-${row.currency}`}>
               <td>{row.label}</td>
               <td>{row.currency}</td>
-              <td>{row.marketValue}</td>
-              <td>{row.annualizedRent}</td>
-              <td>{row.yieldPercentage}%</td>
+              <td>{fmtMoney(row.marketValue)}</td>
+              <td>{fmtMoney(row.annualizedRent)}</td>
+              <td>{fmtPct(row.yieldPercentage)}</td>
             </tr>
           ))}
         </tbody>
