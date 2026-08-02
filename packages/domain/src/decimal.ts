@@ -98,3 +98,28 @@ export function clampMoney(amount: string, min: string | null, max: string | nul
   if (max !== null && compareMoney(result, max) > 0) result = max;
   return result;
 }
+
+/**
+ * Multiplica dos valores NUMERIC(20,6) exactos — ej. precio por m² ×
+ * superficie = valor estimado (spec, sección 10.3). Trunca hacia cero.
+ */
+export function multiplyMoney(a: string, b: string): string {
+  const aInt = parseFixedPoint(a, MONEY_SCALE);
+  const bInt = parseFixedPoint(b, MONEY_SCALE);
+  const result = (aInt * bInt) / 10n ** BigInt(MONEY_SCALE);
+  return formatFixedPoint(result, MONEY_SCALE);
+}
+
+/**
+ * Divide dos valores NUMERIC(20,6) exactos — ej. precio / superficie =
+ * precio por m² (spec, sección 10.2). Trunca hacia cero.
+ */
+export function divideMoney(a: string, b: string): string {
+  const aInt = parseFixedPoint(a, MONEY_SCALE);
+  const bInt = parseFixedPoint(b, MONEY_SCALE);
+  if (bInt === 0n) {
+    throw new Error("No se puede dividir por cero");
+  }
+  const result = (aInt * 10n ** BigInt(MONEY_SCALE)) / bInt;
+  return formatFixedPoint(result, MONEY_SCALE);
+}

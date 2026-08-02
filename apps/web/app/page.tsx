@@ -84,6 +84,9 @@ export default async function DashboardPage() {
         <li>
           <Link href="/expenses">Gastos y distribución</Link>
         </li>
+        <li>
+          <Link href="/market-comparables">Comparables de mercado</Link>
+        </li>
       </ul>
       <form
         action={async () => {

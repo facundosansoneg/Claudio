@@ -1,11 +1,26 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
-import { withOrganizationContext, properties, ownershipInterests, owners, parties, taxExemptions, valuations } from "@farfalla/database";
+import {
+  withOrganizationContext,
+  properties,
+  ownershipInterests,
+  owners,
+  parties,
+  taxExemptions,
+  valuations,
+  marketComparables,
+  marketEstimates,
+} from "@farfalla/database";
 import { getPropertyYield, getPropertyNOI } from "@farfalla/domain";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
-import { createOwnershipInterestAction, createTaxExemptionAction, createValuationAction } from "./actions";
+import {
+  createOwnershipInterestAction,
+  createTaxExemptionAction,
+  createValuationAction,
+  createMarketEstimateAction,
+} from "./actions";
 
 export default async function PropertyDetailPage({
   params,
@@ -27,15 +42,25 @@ export default async function PropertyDetailPage({
     );
   }
 
-  const [canView, canCreate, canViewExemptions, canCreateExemptions, canViewValuations, canCreateValuations] =
-    await Promise.all([
-      hasPermission(context, "ownership_interest", "view"),
-      hasPermission(context, "ownership_interest", "create"),
-      hasPermission(context, "tax_exemption", "view"),
-      hasPermission(context, "tax_exemption", "create"),
-      hasPermission(context, "valuation", "view"),
-      hasPermission(context, "valuation", "create"),
-    ]);
+  const [
+    canView,
+    canCreate,
+    canViewExemptions,
+    canCreateExemptions,
+    canViewValuations,
+    canCreateValuations,
+    canViewEstimates,
+    canCreateEstimates,
+  ] = await Promise.all([
+    hasPermission(context, "ownership_interest", "view"),
+    hasPermission(context, "ownership_interest", "create"),
+    hasPermission(context, "tax_exemption", "view"),
+    hasPermission(context, "tax_exemption", "create"),
+    hasPermission(context, "valuation", "view"),
+    hasPermission(context, "valuation", "create"),
+    hasPermission(context, "market_estimate", "view"),
+    hasPermission(context, "market_estimate", "create"),
+  ]);
 
   if (!canView) {
     return (
@@ -79,7 +104,19 @@ export default async function PropertyDetailPage({
       .where(eq(valuations.propertyId, id))
       .orderBy(desc(valuations.valuationDate));
 
-    return { property, interests, ownersList, exemptions, valuationsList };
+    const comparablesList = await tx
+      .select()
+      .from(marketComparables)
+      .where(eq(marketComparables.status, "active"))
+      .orderBy(desc(marketComparables.captureDate));
+
+    const estimatesList = await tx
+      .select()
+      .from(marketEstimates)
+      .where(eq(marketEstimates.propertyId, id))
+      .orderBy(desc(marketEstimates.estimateDate));
+
+    return { property, interests, ownersList, exemptions, valuationsList, comparablesList, estimatesList };
   });
 
   if (!data) {
@@ -113,7 +150,7 @@ export default async function PropertyDetailPage({
       })
     : null;
 
-  const { property, interests, ownersList, exemptions, valuationsList } = data;
+  const { property, interests, ownersList, exemptions, valuationsList, comparablesList, estimatesList } = data;
 
   // TAX-004: aviso visual de vencimiento próximo. El umbral en días
   // todavía no está en `parameters` (pendiente de Hito 6, cuando se
@@ -486,6 +523,109 @@ export default async function PropertyDetailPage({
               <button type="submit">Registrar valoración</button>
             </form>
           )}
+        </>
+      )}
+
+      {canViewEstimates && (
+        <>
+          <h2>Estimación automática de mercado</h2>
+          <p>
+            <small>
+              Comparables ponderados a mano, nunca una cifra única opaca (spec, sección 10.3) — el
+              rango mínimo/máximo usa el rango intercuartílico de precio/m² de los comparables
+              elegidos. No reemplaza una tasación oficial.
+            </small>
+          </p>
+
+          {estimatesList.length === 0 ? (
+            <p>Todavía no hay estimaciones generadas para esta propiedad.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Valor (min / central / max)</th>
+                  <th>Alquiler (min / central / max)</th>
+                  <th>Confianza</th>
+                </tr>
+              </thead>
+              <tbody>
+                {estimatesList.map((estimate) => (
+                  <tr key={estimate.id}>
+                    <td>{estimate.estimateDate}</td>
+                    <td>
+                      {estimate.valueMin && estimate.valueCentral && estimate.valueMax
+                        ? `${estimate.valueMin} / ${estimate.valueCentral} / ${estimate.valueMax} ${estimate.currency}`
+                        : "—"}
+                    </td>
+                    <td>
+                      {estimate.rentMin && estimate.rentCentral && estimate.rentMax
+                        ? `${estimate.rentMin} / ${estimate.rentCentral} / ${estimate.rentMax} ${estimate.currency}`
+                        : "—"}
+                    </td>
+                    <td>{estimate.confidence}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {canCreateEstimates &&
+            (comparablesList.length === 0 ? (
+              <p>
+                Hace falta cargar <Link href="/market-comparables">comparables de mercado</Link> antes de poder
+                estimar.
+              </p>
+            ) : (
+              <form action={createMarketEstimateAction}>
+                <input type="hidden" name="propertyId" value={property.id} />
+                <div>
+                  <label>
+                    Fecha de estimación <input type="date" name="estimateDate" required />
+                  </label>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Usar</th>
+                      <th>Tipo</th>
+                      <th>Dirección</th>
+                      <th>Precio/m²</th>
+                      <th>Peso (%, suma 100 dentro de cada grupo)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparablesList.map((comparable) => (
+                      <tr key={comparable.id}>
+                        <td>
+                          <input type="checkbox" name={`use_${comparable.id}`} disabled={!comparable.pricePerSqm} />
+                        </td>
+                        <td>{comparable.transactionType === "sale" ? "Venta" : "Alquiler"}</td>
+                        <td>{comparable.address ?? comparable.zone ?? comparable.neighborhood ?? "—"}</td>
+                        <td>{comparable.pricePerSqm ?? "sin calcular"}</td>
+                        <td>
+                          <input
+                            type="number"
+                            name={`weight_${comparable.id}`}
+                            step="0.00000001"
+                            min="0"
+                            max="100"
+                            disabled={!comparable.pricePerSqm}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div>
+                  <label>
+                    Ajustes documentados (superficie, garaje, terraza, estado, antigüedad, amenities){" "}
+                    <input name="adjustmentsNotes" />
+                  </label>
+                </div>
+                <button type="submit">Generar estimación</button>
+              </form>
+            ))}
         </>
       )}
     </main>

@@ -47,6 +47,10 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "allocation_rule", action: "create", description: "Crear regla de distribución de gastos" },
   { resource: "valuation", action: "view", description: "Ver valoraciones y yield" },
   { resource: "valuation", action: "create", description: "Registrar valoración" },
+  { resource: "market_comparable", action: "view", description: "Ver comparables de mercado" },
+  { resource: "market_comparable", action: "create", description: "Cargar comparable de mercado" },
+  { resource: "market_estimate", action: "view", description: "Ver estimaciones automáticas" },
+  { resource: "market_estimate", action: "create", description: "Generar estimación automática" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

@@ -111,6 +111,32 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
             </select>
           </label>
         </div>
+        <div>
+          <label>
+            Superficie construida m²{" "}
+            <input name="builtAreaM2" type="number" step="0.000001" defaultValue={property.builtAreaM2 ?? ""} />
+          </label>
+        </div>
+        <div>
+          <label>
+            Superficie de terreno m²{" "}
+            <input name="landAreaM2" type="number" step="0.000001" defaultValue={property.landAreaM2 ?? ""} />
+          </label>
+        </div>
+        <div>
+          <label>
+            Latitud <input name="latitude" type="number" step="0.0000000001" defaultValue={property.latitude ?? ""} />
+          </label>
+        </div>
+        <div>
+          <label>
+            Longitud{" "}
+            <input name="longitude" type="number" step="0.0000000001" defaultValue={property.longitude ?? ""} />
+          </label>
+        </div>
+        <p>
+          <small>Superficie y coordenadas se usan para yield sobre valor de mercado y estimación automática (sección 10.3).</small>
+        </p>
         <button type="submit">Guardar</button>
       </form>
     </main>

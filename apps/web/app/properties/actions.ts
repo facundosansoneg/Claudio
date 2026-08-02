@@ -80,6 +80,10 @@ export async function updatePropertyAction(formData: FormData) {
   const city = String(formData.get("city") ?? "").trim() || null;
   const department = String(formData.get("department") ?? "").trim() || null;
   const referenceCurrency = String(formData.get("referenceCurrency") ?? "UYU");
+  const builtAreaM2 = String(formData.get("builtAreaM2") ?? "").trim() || null;
+  const landAreaM2 = String(formData.get("landAreaM2") ?? "").trim() || null;
+  const latitude = String(formData.get("latitude") ?? "").trim() || null;
+  const longitude = String(formData.get("longitude") ?? "").trim() || null;
 
   await withOrganizationContext(getDb(), context.organizationId, async (tx) => {
     const [previous] = await tx.select().from(properties).where(eq(properties.id, propertyId));
@@ -98,6 +102,10 @@ export async function updatePropertyAction(formData: FormData) {
         city,
         department,
         referenceCurrency,
+        builtAreaM2,
+        landAreaM2,
+        latitude,
+        longitude,
         updatedBy: context.userId,
       })
       .where(eq(properties.id, propertyId));

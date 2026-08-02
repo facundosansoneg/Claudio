@@ -11,7 +11,7 @@ import {
   valuations,
   type Database,
 } from "@farfalla/database";
-import { validateOwnershipInterests, type OwnershipInterestRecord } from "@farfalla/domain";
+import { validateOwnershipInterests, estimateMarketValue, type OwnershipInterestRecord } from "@farfalla/domain";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
@@ -195,6 +195,52 @@ export async function createValuationAction(formData: FormData) {
       newState: { propertyId, valuationDate, value, currency, source, method },
     });
   });
+
+  revalidatePath(`/properties/${propertyId}`);
+  redirect(`/properties/${propertyId}`);
+}
+
+export async function createMarketEstimateAction(formData: FormData) {
+  const context = await getCurrentUserContext();
+  if (!context) throw new Error("No autenticado");
+
+  const allowed = await hasPermission(context, "market_estimate", "create");
+  if (!allowed) throw new Error("No autorizado");
+
+  const propertyId = String(formData.get("propertyId") ?? "").trim();
+  const estimateDate = String(formData.get("estimateDate") ?? "").trim();
+  const adjustmentsNotes = String(formData.get("adjustmentsNotes") ?? "").trim() || null;
+
+  // Comparables seleccionados: cada fila del listado manda use_<id>
+  // (checkbox) y weight_<id> (peso 0-100 dentro de su grupo venta/alquiler).
+  const comparables: { comparableId: string; weight: string }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("use_")) continue;
+    const comparableId = key.slice("use_".length);
+    const weight = String(formData.get(`weight_${comparableId}`) ?? "").trim();
+    if (value === "on" && weight) comparables.push({ comparableId, weight });
+  }
+
+  if (!propertyId || !estimateDate) {
+    redirect(`/properties/${propertyId}?error=${encodeURIComponent("Faltan campos obligatorios")}`);
+  }
+  if (comparables.length === 0) {
+    redirect(`/properties/${propertyId}?error=${encodeURIComponent("Elegí al menos un comparable con su peso")}`);
+  }
+
+  try {
+    await estimateMarketValue(getDb(), {
+      organizationId: context.organizationId,
+      propertyId,
+      estimateDate,
+      comparables,
+      adjustmentsNotes,
+      triggeredBy: context.userId,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No se pudo generar la estimación";
+    redirect(`/properties/${propertyId}?error=${encodeURIComponent(message)}`);
+  }
 
   revalidatePath(`/properties/${propertyId}`);
   redirect(`/properties/${propertyId}`);
