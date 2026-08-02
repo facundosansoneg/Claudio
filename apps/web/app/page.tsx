@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPortfolioVacancy, getPortfolioDelinquency } from "@farfalla/domain";
+import { getPortfolioVacancy, getPortfolioDelinquency, getYieldByDimension, type DimensionYield } from "@farfalla/domain";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
@@ -44,12 +44,13 @@ export default async function DashboardPage() {
 
   const canViewDashboard = await hasPermission(context, "portfolio_dashboard", "view");
   const todayIso = new Date().toISOString().slice(0, 10);
-  const [vacancy, delinquency] = canViewDashboard
+  const [vacancy, delinquency, yieldByDimension] = canViewDashboard
     ? await Promise.all([
         getPortfolioVacancy(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
         getPortfolioDelinquency(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+        getYieldByDimension(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
       ])
-    : [null, null];
+    : [null, null, null];
 
   return (
     <main>
@@ -133,6 +134,22 @@ export default async function DashboardPage() {
               </tbody>
             </table>
           )}
+
+          {yieldByDimension && (
+            <>
+              <h3>Rentabilidad por dimensión (yield bruto)</h3>
+              <p>
+                <small>
+                  Solo incluye propiedades con valoración vigente y renta activa en la misma
+                  moneda que la valoración. Zona, entidad y portafolio todavía no están cubiertas.
+                </small>
+              </p>
+              <DimensionYieldTable title="Por tipo de inmueble" rows={yieldByDimension.byPropertyType} />
+              <DimensionYieldTable title="Por barrio" rows={yieldByDimension.byNeighborhood} />
+              <DimensionYieldTable title="Por propietario (prorrateado por participación económica)" rows={yieldByDimension.byOwner} />
+              <DimensionYieldTable title="Por familia" rows={yieldByDimension.byFamily} />
+            </>
+          )}
         </>
       )}
 
@@ -187,5 +204,44 @@ export default async function DashboardPage() {
         <button type="submit">Cerrar sesión</button>
       </form>
     </main>
+  );
+}
+
+function DimensionYieldTable({ title, rows }: { title: string; rows: DimensionYield[] }) {
+  if (rows.length === 0) {
+    return (
+      <p>
+        <em>{title}:</em> sin datos suficientes.
+      </p>
+    );
+  }
+  return (
+    <>
+      <p>
+        <em>{title}</em>
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Grupo</th>
+            <th>Moneda</th>
+            <th>Valor de mercado</th>
+            <th>Alquiler anualizado</th>
+            <th>Yield bruto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.key}-${row.currency}`}>
+              <td>{row.label}</td>
+              <td>{row.currency}</td>
+              <td>{row.marketValue}</td>
+              <td>{row.annualizedRent}</td>
+              <td>{row.yieldPercentage}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
