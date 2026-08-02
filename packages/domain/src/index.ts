@@ -25,4 +25,7 @@ export * from "./patrimonial/get-below-market-leases";
 export * from "./operations/create-task";
 export * from "./operations/update-task-status";
 export * from "./operations/add-task-comment";
+export * from "./operations/get-expiring-leases";
+export * from "./operations/get-overdue-tasks";
+export * from "./operations/get-alerts-center";
 export * from "./seed/seed-demo-dataset";

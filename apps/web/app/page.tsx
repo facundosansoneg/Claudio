@@ -4,6 +4,9 @@ import {
   getPortfolioDelinquency,
   getYieldByDimension,
   getBelowMarketLeases,
+  getExpiringTaxExemptions,
+  getExpiringLeases,
+  getOverdueTasks,
   type DimensionYield,
 } from "@farfalla/domain";
 import { getDb } from "@/lib/db";
@@ -50,14 +53,26 @@ export default async function DashboardPage() {
 
   const canViewDashboard = await hasPermission(context, "portfolio_dashboard", "view");
   const todayIso = new Date().toISOString().slice(0, 10);
-  const [vacancy, delinquency, yieldByDimension, belowMarketLeases] = canViewDashboard
-    ? await Promise.all([
-        getPortfolioVacancy(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
-        getPortfolioDelinquency(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
-        getYieldByDimension(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
-        getBelowMarketLeases(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
-      ])
-    : [null, null, null, null];
+  // CTRL-001: "días previos configurables" — todavía sin llevar a
+  // `parameters`, mismo default documentado que ya usa la ficha de
+  // propiedad para exoneraciones (apps/web/app/properties/[id]/page.tsx).
+  const ALERT_WINDOW_DAYS = 30;
+  const [vacancy, delinquency, yieldByDimension, belowMarketLeases, expiringTaxExemptions, expiringLeases, overdueTasks] =
+    canViewDashboard
+      ? await Promise.all([
+          getPortfolioVacancy(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+          getPortfolioDelinquency(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+          getYieldByDimension(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+          getBelowMarketLeases(getDb(), { organizationId: context.organizationId, asOfDate: todayIso }),
+          getExpiringTaxExemptions(getDb(), {
+            organizationId: context.organizationId,
+            daysAhead: ALERT_WINDOW_DAYS,
+            today: todayIso,
+          }),
+          getExpiringLeases(getDb(), { organizationId: context.organizationId, daysAhead: ALERT_WINDOW_DAYS, today: todayIso }),
+          getOverdueTasks(getDb(), { organizationId: context.organizationId, today: todayIso }),
+        ])
+      : [null, null, null, null, null, null, null];
 
   return (
     <main>
@@ -66,6 +81,51 @@ export default async function DashboardPage() {
         Sesión iniciada como <strong>{context.displayName}</strong> ({context.email})
       </p>
       <p>Organización: {context.organizationId}</p>
+
+      {canViewDashboard && expiringTaxExemptions && expiringLeases && overdueTasks && (
+        <>
+          <h2>Centro de alertas</h2>
+          <p>
+            <small>
+              Spec, CTRL-001/CTRL-002. Ventana de {ALERT_WINDOW_DAYS} días para exoneraciones y
+              contratos. Pagos sin aplicar, saldos a favor, conciliaciones pendientes, documentos
+              y seguros próximos a vencer, gastos fuera de presupuesto, rendimiento inferior al
+              objetivo y reajustes próximos no están cubiertos todavía — no hay conciliación
+              bancaria, tracking de vencimientos documentales/pólizas, presupuesto, yield objetivo
+              por propiedad ni reajustes (sección 7.6) implementados.
+            </small>
+          </p>
+          {expiringTaxExemptions.length === 0 && expiringLeases.length === 0 && overdueTasks.length === 0 ? (
+            <p>Sin alertas activas.</p>
+          ) : (
+            <ul>
+              {expiringTaxExemptions.map((exemption) => (
+                <li key={exemption.id}>
+                  Exoneración de {exemption.taxType.toUpperCase()} de {exemption.propertyName} vence en{" "}
+                  {exemption.daysUntilExpiration} días ({exemption.validTo})
+                </li>
+              ))}
+              {expiringLeases.map((lease) => (
+                <li key={lease.leaseId}>
+                  Contrato {lease.leaseNumber} de {lease.propertyName} ({lease.unitCode}) vence en{" "}
+                  {lease.daysUntilExpiration} días ({lease.endDate})
+                </li>
+              ))}
+              {overdueTasks.map((task) => (
+                <li key={task.taskId}>
+                  Tarea "{task.title}" vencida hace {task.daysOverdue} días (prioridad {task.priority})
+                </li>
+              ))}
+            </ul>
+          )}
+          <p>
+            <small>
+              Alquileres vencidos: ver "Morosidad" y rentas por debajo de mercado: ver "Contratos
+              con alquiler inferior al mercado", ambos en el dashboard de cartera debajo.
+            </small>
+          </p>
+        </>
+      )}
 
       {canViewDashboard && vacancy && delinquency && (
         <>
