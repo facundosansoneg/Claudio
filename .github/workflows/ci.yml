@@ -44,6 +44,19 @@ jobs:
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
+      # El rol creado vía POSTGRES_USER en la imagen oficial de postgres
+      # nace superusuario, y Postgres nunca aplica row-level security a
+      # un superusuario — ni siquiera con FORCE ROW LEVEL SECURITY (es
+      # una excepción incondicional del motor, no un bug de nuestras
+      # policies). Sin este paso, las pruebas de aislamiento por
+      # organización (RLS, ADR 0006) pasan de forma falsa: el rol ve y
+      # escribe filas de cualquier organización sin que ninguna policy
+      # lo bloquee. En Neon (y en cualquier Postgres gestionado real) el
+      # rol de conexión de la app tampoco es superusuario, así que esto
+      # además deja el entorno de CI fiel a producción.
+      - name: Quitar superusuario al rol de conexión (RLS no aplica a superusers)
+        run: PGPASSWORD=farfalla psql -h localhost -U farfalla -d farfalla_test -c "ALTER ROLE farfalla WITH NOSUPERUSER;"
+
       - name: Lint
         run: pnpm run lint
 
