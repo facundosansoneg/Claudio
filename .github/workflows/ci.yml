@@ -12,13 +12,11 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: farfalla
-          POSTGRES_PASSWORD: farfalla
-          POSTGRES_DB: farfalla_test
+          POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U farfalla"
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -44,18 +42,24 @@ jobs:
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
-      # El rol creado vía POSTGRES_USER en la imagen oficial de postgres
-      # nace superusuario, y Postgres nunca aplica row-level security a
-      # un superusuario — ni siquiera con FORCE ROW LEVEL SECURITY (es
-      # una excepción incondicional del motor, no un bug de nuestras
-      # policies). Sin este paso, las pruebas de aislamiento por
-      # organización (RLS, ADR 0006) pasan de forma falsa: el rol ve y
-      # escribe filas de cualquier organización sin que ninguna policy
-      # lo bloquee. En Neon (y en cualquier Postgres gestionado real) el
-      # rol de conexión de la app tampoco es superusuario, así que esto
-      # además deja el entorno de CI fiel a producción.
-      - name: Quitar superusuario al rol de conexión (RLS no aplica a superusers)
-        run: PGPASSWORD=farfalla psql -h localhost -U farfalla -d farfalla_test -c "ALTER ROLE farfalla WITH NOSUPERUSER;"
+      # El rol que crea el servicio vía POSTGRES_USER sería el rol
+      # "bootstrap" del cluster (el que corre initdb) — Postgres nunca
+      # deja que ese rol específico pierda SUPERUSER (ALTER ROLE lo
+      # rechaza con "the bootstrap user must have the SUPERUSER
+      # attribute"), y un superusuario nunca respeta row-level
+      # security, ni con FORCE ROW LEVEL SECURITY (excepción
+      # incondicional del motor, no un bug de nuestras policies). Por
+      # eso el servicio arranca solo con el admin "postgres" y acá se
+      # crea "farfalla" como un rol nuevo y separado, sin privilegios
+      # de superusuario — el mismo patrón que ya usa el Postgres local
+      # de desarrollo, y el mismo que cualquier Postgres gestionado
+      # real como Neon (el rol de conexión de la app tampoco es
+      # superusuario ahí). Sin esto, las pruebas de aislamiento por
+      # organización (RLS, ADR 0006) pasan de forma falsa.
+      - name: Crear rol de aplicación sin privilegios de superusuario
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE ROLE farfalla WITH LOGIN PASSWORD 'farfalla';"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE DATABASE farfalla_test OWNER farfalla;"
 
       - name: Lint
         run: pnpm run lint
