@@ -74,6 +74,7 @@ async function setupSharedPropertyWithPaidCharge() {
         economicPercentage: "60",
         rentDistributionPercentage: "60",
         taxContributionPercentage: "100", // TAX-003: aporte fiscal distinto del económico
+        validFrom: "2020-01-01",
       },
       {
         organizationId,
@@ -83,6 +84,7 @@ async function setupSharedPropertyWithPaidCharge() {
         economicPercentage: "40",
         rentDistributionPercentage: "40",
         taxContributionPercentage: "0",
+        validFrom: "2020-01-01",
       },
     ]);
 
@@ -303,6 +305,7 @@ describe("distributeChargeToOwners — TAX-003 (aporte fiscal distinto del econ�
         economicPercentage: "100",
         rentDistributionPercentage: "100",
         taxContributionPercentage: "100",
+        validFrom: "2020-01-01",
       });
 
       const [tenantParty] = await tx

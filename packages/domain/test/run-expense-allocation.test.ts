@@ -61,6 +61,7 @@ async function setupSharedProperty() {
         economicPercentage: "60",
         rentDistributionPercentage: "60",
         taxContributionPercentage: "60",
+        validFrom: "2020-01-01",
       },
       {
         organizationId,
@@ -70,6 +71,7 @@ async function setupSharedProperty() {
         economicPercentage: "40",
         rentDistributionPercentage: "40",
         taxContributionPercentage: "40",
+        validFrom: "2020-01-01",
       },
     ]);
 

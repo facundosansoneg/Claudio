@@ -14,4 +14,5 @@ export * from "./invoicing/create-manual-invoice-draft";
 export * from "./invoicing/confirm-manual-invoice";
 export * from "./expenses/run-expense-allocation";
 export * from "./patrimonial/get-property-yield";
+export * from "./patrimonial/get-property-noi";
 export * from "./seed/seed-demo-dataset";

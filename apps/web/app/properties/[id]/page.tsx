@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { withOrganizationContext, properties, ownershipInterests, owners, parties, taxExemptions, valuations } from "@farfalla/database";
-import { getPropertyYield } from "@farfalla/domain";
+import { getPropertyYield, getPropertyNOI } from "@farfalla/domain";
 import { getDb } from "@/lib/db";
 import { getCurrentUserContext } from "@/lib/current-user";
 import { hasPermission } from "@/lib/require-permission";
@@ -92,11 +92,24 @@ export default async function PropertyDetailPage({
     );
   }
 
+  const kpiToday = new Date();
+  const todayIso = kpiToday.toISOString().slice(0, 10);
+  const twelveMonthsAgoIso = new Date(
+    Date.UTC(kpiToday.getUTCFullYear() - 1, kpiToday.getUTCMonth(), kpiToday.getUTCDate()),
+  )
+    .toISOString()
+    .slice(0, 10);
+
   const yieldResult = canViewValuations
-    ? await getPropertyYield(getDb(), {
+    ? await getPropertyYield(getDb(), { organizationId: context.organizationId, propertyId: id, asOfDate: todayIso })
+    : null;
+
+  const noiResult = canViewValuations
+    ? await getPropertyNOI(getDb(), {
         organizationId: context.organizationId,
         propertyId: id,
-        asOfDate: new Date().toISOString().slice(0, 10),
+        periodStart: twelveMonthsAgoIso,
+        periodEnd: todayIso,
       })
     : null;
 
@@ -339,6 +352,52 @@ export default async function PropertyDetailPage({
             </p>
           ) : (
             <p>Sin valoraciones registradas todavía — no se puede calcular yield.</p>
+          )}
+
+          {noiResult && (
+            <>
+              <h3>NOI (últimos 12 meses)</h3>
+              <p>
+                <small>
+                  Ingreso efectivo simplificado (alquiler cobrado) menos gastos operativos
+                  (opex/mantenimiento/reparación/impuestos/seguro) del período {noiResult.periodStart} —{" "}
+                  {noiResult.periodEnd}. No incluye CapEx, honorarios ni gastos financieros.
+                </small>
+              </p>
+              {noiResult.byCurrency.length === 0 ? (
+                <p>Sin movimientos de ingresos ni gastos en el período.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Moneda</th>
+                      <th>Ingreso cobrado</th>
+                      <th>Gastos operativos</th>
+                      <th>NOI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {noiResult.byCurrency.map((entry) => (
+                      <tr key={entry.currency}>
+                        <td>{entry.currency}</td>
+                        <td>{entry.collectedIncome}</td>
+                        <td>{entry.operatingExpenses}</td>
+                        <td>{entry.noi}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {noiResult.netYieldPercentage !== null ? (
+                <p>
+                  <strong>
+                    Yield neto sobre valor de mercado ({noiResult.netYieldCurrency}, NOI anualizado): {noiResult.netYieldPercentage}%
+                  </strong>
+                </p>
+              ) : (
+                <p>Yield neto no calculable — falta valoración o NOI en la misma moneda.</p>
+              )}
+            </>
           )}
 
           {valuationsList.length === 0 ? (
