@@ -22,4 +22,7 @@ export * from "./patrimonial/get-portfolio-vacancy";
 export * from "./patrimonial/get-portfolio-delinquency";
 export * from "./patrimonial/get-yield-by-dimension";
 export * from "./patrimonial/get-below-market-leases";
+export * from "./operations/create-task";
+export * from "./operations/update-task-status";
+export * from "./operations/add-task-comment";
 export * from "./seed/seed-demo-dataset";

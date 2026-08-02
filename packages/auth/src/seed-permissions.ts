@@ -52,6 +52,10 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "market_estimate", action: "view", description: "Ver estimaciones automáticas" },
   { resource: "market_estimate", action: "create", description: "Generar estimación automática" },
   { resource: "portfolio_dashboard", action: "view", description: "Ver dashboard de cartera (vacancia, morosidad)" },
+  { resource: "task", action: "view", description: "Ver tareas" },
+  { resource: "task", action: "create", description: "Crear tarea" },
+  { resource: "task", action: "edit", description: "Cambiar estado de una tarea" },
+  { resource: "task", action: "comment", description: "Comentar una tarea" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

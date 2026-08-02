@@ -248,6 +248,9 @@ export default async function DashboardPage() {
         <li>
           <Link href="/market-comparables">Comparables de mercado</Link>
         </li>
+        <li>
+          <Link href="/tasks">Tareas</Link>
+        </li>
       </ul>
       <form
         action={async () => {

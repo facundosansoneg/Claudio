@@ -169,6 +169,20 @@
       "when": 1785632585066,
       "tag": "0023_enable_rls_market_comparables_estimates",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785635558236,
+      "tag": "0024_add_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785635572213,
+      "tag": "0025_enable_rls_tasks",
+      "breakpoints": true
     }
   ]
 }
