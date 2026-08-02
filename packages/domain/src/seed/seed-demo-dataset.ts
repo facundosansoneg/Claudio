@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   parties,
   owners,
@@ -172,6 +172,26 @@ export async function seedDemoDataset(
 
     // Escenario E2E-002 del spec: 60/40 legal/económico/renta, 100/0
     // fiscal — el mismo caso probado en validate-ownership-interests.
+    //
+    // Upsert (no onConflictDoNothing): en una base persistente como
+    // Neon, una fila insertada por una versión vieja de este seed
+    // (antes de fijar validFrom acá) puede haber quedado con el
+    // default `now()` de ese momento — un valid_from posterior a
+    // cargos de meses anteriores generados en corridas futuras del
+    // seed, rompiendo la distribución automática más abajo. El upsert
+    // fuerza siempre el valor que este código pretende, así una fila
+    // vieja se autocorrige en la próxima corrida en vez de quedar
+    // congelada para siempre.
+    const ownershipInterestUpsertSet = {
+      organizationId: sql`excluded.organization_id`,
+      propertyId: sql`excluded.property_id`,
+      ownerId: sql`excluded.owner_id`,
+      legalPercentage: sql`excluded.legal_percentage`,
+      economicPercentage: sql`excluded.economic_percentage`,
+      rentDistributionPercentage: sql`excluded.rent_distribution_percentage`,
+      taxContributionPercentage: sql`excluded.tax_contribution_percentage`,
+      validFrom: sql`excluded.valid_from`,
+    };
     await tx
       .insert(ownershipInterests)
       .values([
@@ -209,7 +229,7 @@ export async function seedDemoDataset(
           validFrom: "2026-01-01",
         },
       ])
-      .onConflictDoNothing();
+      .onConflictDoUpdate({ target: ownershipInterests.id, set: ownershipInterestUpsertSet });
 
     await tx
       .insert(parties)
