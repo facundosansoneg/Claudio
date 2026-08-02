@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@farfalla/database": "workspace:*",
+    "@farfalla/domain": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "pg-boss": "^12.26.4"
   },

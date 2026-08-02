@@ -20,7 +20,7 @@ export interface GenerateChargeInput {
   period: string; // "YYYY-MM"
   dueDate: string; // "YYYY-MM-DD"
   amount: string; // NUMERIC(20,6) como string
-  triggeredBy: string; // userId
+  triggeredBy: string | null; // userId; null = job/sistema (audit_log.user_id documenta esta convención)
 }
 
 export interface GenerateChargeResult {

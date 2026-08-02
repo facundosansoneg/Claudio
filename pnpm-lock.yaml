@@ -69,6 +69,9 @@ importers:
       '@farfalla/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@farfalla/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.3)(pg@8.22.0)
