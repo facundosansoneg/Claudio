@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://farfalla:farfalla@localhost:5432/farfalla_test
+      TEST_DATABASE_URL: postgres://farfalla:farfalla@localhost:5432/farfalla_test
+      AUTH_SECRET: ci-build-only-secret
+      AUTH_MICROSOFT_ENTRA_ID_ID: ci-placeholder
+      AUTH_MICROSOFT_ENTRA_ID_SECRET: ci-placeholder
+      AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      # El rol que crea el servicio vía POSTGRES_USER sería el rol
+      # "bootstrap" del cluster (el que corre initdb) — Postgres nunca
+      # deja que ese rol específico pierda SUPERUSER (ALTER ROLE lo
+      # rechaza con "the bootstrap user must have the SUPERUSER
+      # attribute"), y un superusuario nunca respeta row-level
+      # security, ni con FORCE ROW LEVEL SECURITY (excepción
+      # incondicional del motor, no un bug de nuestras policies). Por
+      # eso el servicio arranca solo con el admin "postgres" y acá se
+      # crea "farfalla" como un rol nuevo y separado, sin privilegios
+      # de superusuario — el mismo patrón que ya usa el Postgres local
+      # de desarrollo, y el mismo que cualquier Postgres gestionado
+      # real como Neon (el rol de conexión de la app tampoco es
+      # superusuario ahí). Sin esto, las pruebas de aislamiento por
+      # organización (RLS, ADR 0006) pasan de forma falsa.
+      - name: Crear rol de aplicación sin privilegios de superusuario
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE ROLE farfalla WITH LOGIN PASSWORD 'farfalla';"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE DATABASE farfalla_test OWNER farfalla;"
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Chequeo de tipos
+        run: pnpm run typecheck
+
+      # Regla no negociable (CLAUDE.md #11): correr migraciones en cada
+      # entrega. Los suites de test de @farfalla/database, @farfalla/auth
+      # y @farfalla/worker también migran su propia base al arrancar
+      # (beforeAll), pero este paso deja el gate explícito y separado.
+      - name: Migraciones de base de datos
+        run: pnpm --filter @farfalla/database run migrate
+
+      - name: Pruebas unitarias e integración
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build

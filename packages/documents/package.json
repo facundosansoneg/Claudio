@@ -1,0 +1,22 @@
+{
+  "name": "@farfalla/documents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1101.0",
+    "@aws-sdk/s3-request-presigner": "^3.1101.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "s3rver": "^3.7.1",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
+  }
+}

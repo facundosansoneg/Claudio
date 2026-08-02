@@ -1,0 +1,216 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1785602803654,
+      "tag": "0000_broad_agent_zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785602813363,
+      "tag": "0001_enable_row_level_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785603035179,
+      "tag": "0002_add_unique_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785603356977,
+      "tag": "0003_add_job_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785603606533,
+      "tag": "0004_add_user_identities",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785618066061,
+      "tag": "0005_add_owners_properties",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785618074742,
+      "tag": "0006_enable_rls_owners_properties",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785618892890,
+      "tag": "0007_add_leases_charges_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785618907523,
+      "tag": "0008_enable_rls_leases_charges_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785621348867,
+      "tag": "0009_add_tax_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785621354562,
+      "tag": "0010_enable_rls_tax_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785623001902,
+      "tag": "0011_add_tax_exemptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785623021431,
+      "tag": "0012_enable_rls_tax_exemptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785623766090,
+      "tag": "0013_add_commission_concepts",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785623770209,
+      "tag": "0014_enable_rls_commission_concepts",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1785624135890,
+      "tag": "0015_add_lease_commission_concept_code",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1785625864794,
+      "tag": "0016_add_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1785625869429,
+      "tag": "0017_enable_rls_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1785626519319,
+      "tag": "0018_add_expenses_allocation",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1785626522941,
+      "tag": "0019_enable_rls_expenses_allocation",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785626962543,
+      "tag": "0020_add_valuations",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785626966595,
+      "tag": "0021_enable_rls_valuations",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785632558041,
+      "tag": "0022_add_market_comparables_estimates",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785632585066,
+      "tag": "0023_enable_rls_market_comparables_estimates",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785635558236,
+      "tag": "0024_add_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785635572213,
+      "tag": "0025_enable_rls_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785637977119,
+      "tag": "0026_add_vendors_work_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785637989380,
+      "tag": "0027_enable_rls_vendors_work_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785647317323,
+      "tag": "0028_add_import_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785647331528,
+      "tag": "0029_enable_rls_import_batches",
+      "breakpoints": true
+    }
+  ]
+}

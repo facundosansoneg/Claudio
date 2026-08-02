@@ -1,0 +1,400 @@
+import { and, eq } from "drizzle-orm";
+import {
+  charges,
+  leases,
+  units,
+  ownershipInterests,
+  taxProfiles,
+  taxExemptions,
+  commissionConcepts,
+  commissionConceptOverrides,
+  journalEntries,
+  journalLines,
+  ledgerAccounts,
+  recordAuditEvent,
+  withOrganizationContext,
+  type Database,
+} from "@farfalla/database";
+import { applyPercentage, clampMoney, compareMoney, subtractMoney } from "../decimal";
+import { ACCOUNT_CODES } from "./chart-of-accounts";
+import { resolveVatRate } from "./resolve-vat-rate";
+
+export interface DistributeChargeToOwnersInput {
+  organizationId: string;
+  chargeId: string;
+  triggeredBy: string;
+}
+
+export interface OwnerDistribution {
+  ownerId: string;
+  grossShare: string;
+  commission: string;
+  commissionVat: string;
+  taxWithholding: string;
+  taxExempt: boolean;
+  netToOwner: string;
+}
+
+export interface DistributeChargeToOwnersResult {
+  chargeId: string;
+  distributions: OwnerDistribution[];
+}
+
+async function getAccountId(tx: Database, organizationId: string, code: string): Promise<string> {
+  const [account] = await tx
+    .select({ id: ledgerAccounts.id })
+    .from(ledgerAccounts)
+    .where(and(eq(ledgerAccounts.organizationId, organizationId), eq(ledgerAccounts.code, code)));
+  if (!account) {
+    throw new Error(
+      `No existe la cuenta contable ${code} para esta organización — correr seedChartOfAccounts primero`,
+    );
+  }
+  return account.id;
+}
+
+function isActiveAt<T extends { validFrom: string; validTo: string | null }>(
+  row: T,
+  date: string,
+): boolean {
+  return row.validFrom <= date && (row.validTo === null || row.validTo >= date);
+}
+
+/**
+ * Acreditación al propietario, comisión de administración y retención
+ * fiscal (spec, sección 3.4, pasos 3-4; docs/accounting-rules.md,
+ * sección 3). Solo distribuye cargos ya cobrados por completo
+ * (idempotente: una segunda llamada no duplica los asientos).
+ *
+ * Si el contrato tiene `commission_concept_code` (COMM-001), la comisión
+ * se calcula desde ese concepto del catálogo — con el override del
+ * propietario si existe uno vigente (COMM-002), mínimo/máximo aplicados,
+ * y su IVA correspondiente (débito 2100 adicional / crédito 2200) si el
+ * concepto lo marca. Si el contrato no referencia un concepto, se usa
+ * la negociación puntual `leases.commission_on_rent_percentage`
+ * (LEASE-004) como antes, sin IVA. La retención fiscal usa `ownership_interests.tax_contribution_percentage`
+ * como base (TAX-003: el aporte fiscal puede ser distinto de la
+ * participación económica) multiplicado por la tasa vigente del
+ * propietario en `tax_profiles`. Si un propietario no tiene tax_profile
+ * vigente, no se retiene nada — nunca se asume una tasa (CLAUDE.md
+ * regla 6/13). Si la propiedad tiene una exoneración vigente
+ * (`tax_exemptions`, TAX-002) para el mismo tipo de impuesto a la
+ * fecha del cargo, tampoco se retiene — la exoneración es de la
+ * vivienda, no del propietario, y puede convivir con propiedades
+ * gravadas del mismo propietario sin duplicarlo.
+ */
+export async function distributeChargeToOwners(
+  db: Database,
+  input: DistributeChargeToOwnersInput,
+): Promise<DistributeChargeToOwnersResult> {
+  return withOrganizationContext(db, input.organizationId, async (tx) => {
+    const [charge] = await tx.select().from(charges).where(eq(charges.id, input.chargeId));
+    if (!charge) throw new Error("Cargo no encontrado");
+    if (charge.status !== "paid") throw new Error("Solo se pueden liquidar cargos completamente cobrados");
+
+    const [existing] = await tx
+      .select({ id: journalEntries.id })
+      .from(journalEntries)
+      .where(and(eq(journalEntries.source, "owner_accrual"), eq(journalEntries.sourceDocumentId, charge.id)));
+    if (existing) throw new Error("Este cargo ya fue liquidado a los propietarios");
+
+    const [lease] = await tx.select().from(leases).where(eq(leases.id, charge.leaseId));
+    if (!lease) throw new Error("Contrato del cargo no encontrado");
+    const [unit] = await tx.select().from(units).where(eq(units.id, lease.unitId));
+    if (!unit) throw new Error("Unidad del contrato no encontrada");
+
+    const allInterests = await tx
+      .select()
+      .from(ownershipInterests)
+      .where(eq(ownershipInterests.propertyId, unit.propertyId));
+    const activeInterests = allInterests.filter((interest) => isActiveAt(interest, charge.dueDate));
+    if (activeInterests.length === 0) {
+      throw new Error("La propiedad no tiene propietarios asignados en la fecha del cargo");
+    }
+
+    const allTaxProfiles = await tx.select().from(taxProfiles);
+    const allExemptions = await tx
+      .select()
+      .from(taxExemptions)
+      .where(eq(taxExemptions.propertyId, unit.propertyId));
+
+    // COMM-001/002: si el contrato referencia un concepto de comisión
+    // del catálogo, se resuelve acá (una sola vez) junto con los
+    // overrides por propietario vigentes a la fecha del cargo.
+    let activeCommissionConcept: typeof commissionConcepts.$inferSelect | null = null;
+    let activeOverridesByOwner = new Map<string, typeof commissionConceptOverrides.$inferSelect>();
+    if (lease.commissionConceptCode) {
+      const concepts = await tx
+        .select()
+        .from(commissionConcepts)
+        .where(
+          and(
+            eq(commissionConcepts.organizationId, input.organizationId),
+            eq(commissionConcepts.code, lease.commissionConceptCode),
+          ),
+        );
+      activeCommissionConcept = concepts.find((c) => isActiveAt(c, charge.dueDate)) ?? null;
+
+      if (activeCommissionConcept) {
+        const overrides = await tx
+          .select()
+          .from(commissionConceptOverrides)
+          .where(eq(commissionConceptOverrides.commissionConceptId, activeCommissionConcept.id));
+        activeOverridesByOwner = new Map(
+          activeInterests
+            .map((interest) => [interest.ownerId, overrides.find((o) => o.ownerId === interest.ownerId && isActiveAt(o, charge.dueDate))] as const)
+            .filter((entry): entry is [string, typeof commissionConceptOverrides.$inferSelect] => entry[1] !== undefined),
+        );
+      }
+    }
+    const vatRate = activeCommissionConcept?.hasVat
+      ? await resolveVatRate(tx, input.organizationId, charge.dueDate)
+      : null;
+
+    const distributions: OwnerDistribution[] = activeInterests.map((interest) => {
+      const grossShare = applyPercentage(charge.originalAmount, interest.rentDistributionPercentage);
+
+      let commission: string;
+      let commissionVat = "0.000000";
+      if (activeCommissionConcept) {
+        const override = activeOverridesByOwner.get(interest.ownerId);
+        const percentage = override?.percentage ?? activeCommissionConcept.percentage;
+        const min = override?.minAmount ?? activeCommissionConcept.minAmount;
+        const max = override?.maxAmount ?? activeCommissionConcept.maxAmount;
+        commission = clampMoney(applyPercentage(grossShare, percentage), min, max);
+        if (vatRate) commissionVat = applyPercentage(commission, vatRate);
+      } else {
+        commission = lease.commissionOnRentPercentage
+          ? applyPercentage(grossShare, lease.commissionOnRentPercentage)
+          : "0.000000";
+      }
+
+      const taxBase = applyPercentage(charge.originalAmount, interest.taxContributionPercentage);
+      const activeTaxProfile = allTaxProfiles.find(
+        (profile) => profile.ownerId === interest.ownerId && isActiveAt(profile, charge.dueDate),
+      );
+      const taxExempt = activeTaxProfile
+        ? allExemptions.some(
+            (exemption) => exemption.taxType === activeTaxProfile.taxType && isActiveAt(exemption, charge.dueDate),
+          )
+        : false;
+      const taxWithholding =
+        activeTaxProfile && !taxExempt ? applyPercentage(taxBase, activeTaxProfile.percentage) : "0.000000";
+      const netToOwner = subtractMoney(
+        subtractMoney(subtractMoney(grossShare, commission), commissionVat),
+        taxWithholding,
+      );
+
+      return { ownerId: interest.ownerId, grossShare, commission, commissionVat, taxWithholding, taxExempt, netToOwner };
+    });
+
+    const receivableFundsAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.OWNER_FUNDS_PAYABLE);
+    const rentIncomeAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.RENT_INCOME);
+    const commissionIncomeAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.COMMISSION_INCOME);
+    const taxWithholdingAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.TAX_WITHHOLDING_PAYABLE);
+    const vatPayableAccountId = await getAccountId(tx, input.organizationId, ACCOUNT_CODES.VAT_PAYABLE);
+
+    const baseDimensions = {
+      propertyId: unit.propertyId,
+      unitId: unit.id,
+      leaseId: lease.id,
+    };
+
+    // Paso 3: acreditación al propietario — débito Ingresos / crédito Fondos de propietarios.
+    const [accrualEntry] = await tx
+      .insert(journalEntries)
+      .values({
+        organizationId: input.organizationId,
+        economicDate: charge.dueDate,
+        accountingDate: charge.dueDate,
+        period: charge.period,
+        source: "owner_accrual",
+        sourceDocumentType: "charges",
+        sourceDocumentId: charge.id,
+        description: `Acreditación a propietarios ${charge.chargeType} ${charge.period}`,
+        createdBy: input.triggeredBy,
+      })
+      .returning({ id: journalEntries.id });
+    if (!accrualEntry) throw new Error("No se pudo crear el asiento de acreditación");
+
+    await tx.insert(journalLines).values(
+      distributions.flatMap((d) => [
+        {
+          organizationId: input.organizationId,
+          journalEntryId: accrualEntry.id,
+          accountId: rentIncomeAccountId,
+          debit: d.grossShare,
+          credit: "0",
+          originalCurrency: charge.currency,
+          originalAmount: d.grossShare,
+          ownerId: d.ownerId,
+          ...baseDimensions,
+        },
+        {
+          organizationId: input.organizationId,
+          journalEntryId: accrualEntry.id,
+          accountId: receivableFundsAccountId,
+          debit: "0",
+          credit: d.grossShare,
+          originalCurrency: charge.currency,
+          originalAmount: d.grossShare,
+          ownerId: d.ownerId,
+          ...baseDimensions,
+        },
+      ]),
+    );
+
+    // Paso 4a: comisión de administración — débito Fondos de propietarios / crédito Ingresos por comisión.
+    const commissionLines = distributions.filter((d) => compareMoney(d.commission, "0") > 0);
+    if (commissionLines.length > 0) {
+      const [commissionEntry] = await tx
+        .insert(journalEntries)
+        .values({
+          organizationId: input.organizationId,
+          economicDate: charge.dueDate,
+          accountingDate: charge.dueDate,
+          period: charge.period,
+          source: "commission",
+          sourceDocumentType: "charges",
+          sourceDocumentId: charge.id,
+          description: `Comisión de administración ${charge.period}`,
+          createdBy: input.triggeredBy,
+        })
+        .returning({ id: journalEntries.id });
+      if (!commissionEntry) throw new Error("No se pudo crear el asiento de comisión");
+
+      await tx.insert(journalLines).values(
+        commissionLines.flatMap((d) => [
+          {
+            organizationId: input.organizationId,
+            journalEntryId: commissionEntry.id,
+            accountId: receivableFundsAccountId,
+            debit: d.commission,
+            credit: "0",
+            originalCurrency: charge.currency,
+            originalAmount: d.commission,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+          {
+            organizationId: input.organizationId,
+            journalEntryId: commissionEntry.id,
+            accountId: commissionIncomeAccountId,
+            debit: "0",
+            credit: d.commission,
+            originalCurrency: charge.currency,
+            originalAmount: d.commission,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+        ]),
+      );
+    }
+
+    // Paso 3 (IVA sobre la comisión): débito Fondos de propietarios adicional /
+    // crédito IVA débito (docs/accounting-rules.md, sección 3, paso 3).
+    const vatLines = distributions.filter((d) => compareMoney(d.commissionVat, "0") > 0);
+    if (vatLines.length > 0) {
+      const [vatEntry] = await tx
+        .insert(journalEntries)
+        .values({
+          organizationId: input.organizationId,
+          economicDate: charge.dueDate,
+          accountingDate: charge.dueDate,
+          period: charge.period,
+          source: "commission_vat",
+          sourceDocumentType: "charges",
+          sourceDocumentId: charge.id,
+          description: `IVA sobre comisión de administración ${charge.period}`,
+          createdBy: input.triggeredBy,
+        })
+        .returning({ id: journalEntries.id });
+      if (!vatEntry) throw new Error("No se pudo crear el asiento de IVA sobre comisión");
+
+      await tx.insert(journalLines).values(
+        vatLines.flatMap((d) => [
+          {
+            organizationId: input.organizationId,
+            journalEntryId: vatEntry.id,
+            accountId: receivableFundsAccountId,
+            debit: d.commissionVat,
+            credit: "0",
+            originalCurrency: charge.currency,
+            originalAmount: d.commissionVat,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+          {
+            organizationId: input.organizationId,
+            journalEntryId: vatEntry.id,
+            accountId: vatPayableAccountId,
+            debit: "0",
+            credit: d.commissionVat,
+            originalCurrency: charge.currency,
+            originalAmount: d.commissionVat,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+        ]),
+      );
+    }
+
+    // Paso 4b: retención fiscal — débito Fondos de propietarios / crédito Retenciones a depositar.
+    const taxLines = distributions.filter((d) => compareMoney(d.taxWithholding, "0") > 0);
+    if (taxLines.length > 0) {
+      const [taxEntry] = await tx
+        .insert(journalEntries)
+        .values({
+          organizationId: input.organizationId,
+          economicDate: charge.dueDate,
+          accountingDate: charge.dueDate,
+          period: charge.period,
+          source: "tax_withholding",
+          sourceDocumentType: "charges",
+          sourceDocumentId: charge.id,
+          description: `Retención fiscal ${charge.period}`,
+          createdBy: input.triggeredBy,
+        })
+        .returning({ id: journalEntries.id });
+      if (!taxEntry) throw new Error("No se pudo crear el asiento de retención fiscal");
+
+      await tx.insert(journalLines).values(
+        taxLines.flatMap((d) => [
+          {
+            organizationId: input.organizationId,
+            journalEntryId: taxEntry.id,
+            accountId: receivableFundsAccountId,
+            debit: d.taxWithholding,
+            credit: "0",
+            originalCurrency: charge.currency,
+            originalAmount: d.taxWithholding,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+          {
+            organizationId: input.organizationId,
+            journalEntryId: taxEntry.id,
+            accountId: taxWithholdingAccountId,
+            debit: "0",
+            credit: d.taxWithholding,
+            originalCurrency: charge.currency,
+            originalAmount: d.taxWithholding,
+            ownerId: d.ownerId,
+            ...baseDimensions,
+          },
+        ]),
+      );
+    }
+
+    await recordAuditEvent(tx, {
+      organizationId: input.organizationId,
+      userId: input.triggeredBy,
+      entityType: "charges",
+      entityId: charge.id,
+      action: "distribute",
+      newState: { distributions },
+    });
+
+    return { chargeId: charge.id, distributions };
+  });
+}
