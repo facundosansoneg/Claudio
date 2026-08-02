@@ -317,6 +317,9 @@ export default async function DashboardPage() {
         <li>
           <Link href="/work-orders">Órdenes de trabajo</Link>
         </li>
+        <li>
+          <Link href="/migration/owners">Migración — Propietarios</Link>
+        </li>
       </ul>
       <form
         action={async () => {

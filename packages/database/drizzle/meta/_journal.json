@@ -197,6 +197,20 @@
       "when": 1785637989380,
       "tag": "0027_enable_rls_vendors_work_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785647317323,
+      "tag": "0028_add_import_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785647331528,
+      "tag": "0029_enable_rls_import_batches",
+      "breakpoints": true
     }
   ]
 }

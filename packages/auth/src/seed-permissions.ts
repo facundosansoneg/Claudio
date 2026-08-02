@@ -61,6 +61,9 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "work_order", action: "view", description: "Ver órdenes de trabajo" },
   { resource: "work_order", action: "create", description: "Crear orden de trabajo" },
   { resource: "work_order", action: "edit", description: "Avanzar el estado de una orden de trabajo" },
+  { resource: "import_batch", action: "view", description: "Ver lotes de importación" },
+  { resource: "import_batch", action: "create", description: "Subir y validar un CSV de importación" },
+  { resource: "import_batch", action: "commit", description: "Confirmar un lote de importación validado" },
 ] as const;
 
 export async function seedPermissions(db: Database) {
