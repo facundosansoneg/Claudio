@@ -23,3 +23,4 @@ export * from "./valuations";
 export * from "./market-comparables";
 export * from "./market-estimates";
 export * from "./tasks";
+export * from "./vendors";

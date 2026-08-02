@@ -311,6 +311,12 @@ export default async function DashboardPage() {
         <li>
           <Link href="/tasks">Tareas</Link>
         </li>
+        <li>
+          <Link href="/vendors">Proveedores</Link>
+        </li>
+        <li>
+          <Link href="/work-orders">Órdenes de trabajo</Link>
+        </li>
       </ul>
       <form
         action={async () => {

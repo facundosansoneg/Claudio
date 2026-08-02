@@ -56,6 +56,11 @@ export const PERMISSION_DEFINITIONS = [
   { resource: "task", action: "create", description: "Crear tarea" },
   { resource: "task", action: "edit", description: "Cambiar estado de una tarea" },
   { resource: "task", action: "comment", description: "Comentar una tarea" },
+  { resource: "vendor", action: "view", description: "Ver proveedores" },
+  { resource: "vendor", action: "create", description: "Crear proveedor" },
+  { resource: "work_order", action: "view", description: "Ver órdenes de trabajo" },
+  { resource: "work_order", action: "create", description: "Crear orden de trabajo" },
+  { resource: "work_order", action: "edit", description: "Avanzar el estado de una orden de trabajo" },
 ] as const;
 
 export async function seedPermissions(db: Database) {

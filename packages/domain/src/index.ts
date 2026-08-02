@@ -28,4 +28,7 @@ export * from "./operations/add-task-comment";
 export * from "./operations/get-expiring-leases";
 export * from "./operations/get-overdue-tasks";
 export * from "./operations/get-alerts-center";
+export * from "./operations/create-vendor";
+export * from "./operations/create-work-order";
+export * from "./operations/update-work-order-status";
 export * from "./seed/seed-demo-dataset";
